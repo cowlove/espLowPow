@@ -1,12 +1,14 @@
 #include "jimlib.h"
 #include <PubSubClient.h>
 #include <HTTPClient.h>
+#include <MD5Builder.h>
+
 
 JimWiFi jw("MOF-Guest", "");
 //JimWiFi jw;
 
 struct {
-	int led = 2;
+	int led = 5;
 	int rxHeater = 17;
 	int txHeater = 16;
 	int rxDisplay = 22;
@@ -39,9 +41,6 @@ public:
 		client.setCallback(mqttCallback);
 		if (client.connect(topicPrefix.c_str())) {
 			Serial.println("connected");
-			// Once connected, publish an announcement...
-			String msg = "hello";
-			client.publish((topicPrefix + "/debug").c_str(), msg.c_str());
 			// ... and resubscribe
 			client.subscribe((topicPrefix + "/in").c_str());
 			client.setCallback(mqttCallback);
@@ -67,6 +66,7 @@ public:
 MQTTClient mqtt("192.168.4.1", "lowpow");
 
 void dbg(const char *format, ...) { 
+	return;
 	va_list args;
 	va_start(args, format);
 	char buf[256];
@@ -91,99 +91,108 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
+bool remoteLog(const String &s) {
+	String mac = WiFi.macAddress();
+	mac.replace(":", "");
+	String o = String("{\"MAC\":\"" + mac + "\"},");
+	//s += "{\"SourceFile\":\"" __BASE_FILE__ "\"},";
+	o += s;
+	dbg("LOG: %s", o.c_str());
+	WiFiClient client;
+	if (!client.connect("54.188.66.93", 80) || client.printf(o.c_str()) <= 0) {  
+		return false;
+	}
+	String i = client.readStringUntil('\n');
+	client.stop();
+	MD5Builder md5;
+	md5.begin();
+	md5.add(o.c_str());
+	md5.calculate();
+	String hash = md5.toString();
+	hash.toLowerCase();
+	i.toLowerCase();
+	dbg("MD5 CALC: '%s' IN: '%s'\n", hash.c_str(), i.c_str());
+	return strstr(i.c_str(), hash.c_str()) != NULL;
+}
 
-#define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
+#define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP 30
 
 void setup() {
 	Serial.begin(921600, SERIAL_8N1);
 	Serial.println("Restart");	
 	
-	esp_task_wdt_init(40, true);
+	esp_task_wdt_init(30, true);
 	esp_task_wdt_add(NULL);
 
-	pinMode(36, INPUT);
+	//pinMode(35, INPUT);
 	//analogSetSamples(255);
-	esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
-	Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
-  	delay(10);
 
-
-	//Heltec.begin(true, true, true, true, 915E6);
 	pinMode(pins.led, OUTPUT);
-	digitalWrite(pins.led, 1);
-	jw.onConnect([](void) { });
-	jw.onOTA([](void) {});
-	delay(100);
-	jw.run();
-	Serial.println("setup() finished");
-	delay(100);
-	if (WiFi.status() != WL_CONNECTED) {
-		esp_deep_sleep_start();
-		ESP.restart();
-	}
+	digitalWrite(pins.led, 0);
+	pinMode(18, OUTPUT);
+	digitalWrite(18, 1);
+
+	//delay(100);
+	//jw.run();
+	//Serial.println("setup() finished");
+	//delay(100);
+	//if (WiFi.status() != WL_CONNECTED) {
+	//		esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
+	//	esp_deep_sleep_start();
+	//}
 }
 
+EggTimer sec(10000), minute(60000);
+int loopCount = 0;
 
-EggTimer sec(200), minute(60000);
-int first = 0;
-int postCount = 0;
+
+float avgAnalogRead(int pin) { 
+	float bv = 0;
+	const int avg = 1024;
+	for (int i = 0; i < avg; i++) {
+		bv += analogRead(pin);
+	}
+	return bv / avg;
+}
+
+EggTimer blink(100);
 void loop() {
 	esp_task_wdt_reset();
-	Serial.printf("adc: %04d\n", analogRead(36));
-	if (first == 0) Serial.println("runs()...");
 	jw.run();
 	//mqtt.run();
-	if (first == 0) Serial.println("runs()...finished");
     if (jw.updateInProgress) {
 		return;
 	}
 
-	first = 1;
-
-	if (millis() > 60 * 1000) { // reboot every hour to keep OTA working? 
-	}
+	if (blink.tick()) { 
+		digitalWrite(pins.led, !digitalRead(pins.led));
+		dbg("adc: %6.1f %6.1f", avgAnalogRead(35), avgAnalogRead(33));
+	}	
+	
 	if (sec.tick()) {
-		float bv = 0;
-		const int avg = 500;
-		for (int i = 0; i < avg; i++) {
-			delay(1);
-			bv += analogRead(36);
-		}
-		bv = bv / avg;
-
-		WiFiClient client;
-		HTTPClient http;
-
-		// Your Domain name with URL path or IP address with path
-
-		// Specify content-type header
-		//http.addHeader("Content-Type", "application/json");
-		//int r = http.POST(Sfmt("{\"Tiedown.BatteryVoltage\":%.1f}", bv));
-		int r = -1;
-		if (client.connect("54.188.66.93", 80)) {
-			r = client.printf("{\"Tiedown.BatteryVoltage\":%.1f}\n", bv);
-		}
-		client.stop();
-		delay(200);
-
-	    //int r = http.GET();
-		static int loopCount = 0;
-		if(loopCount++ > 100) { 
-			dbg("SLEEPING");
+		float bv1 = avgAnalogRead(35);
+		float bv2 = avgAnalogRead(33);
+		if (remoteLog(Sfmt("{\"Tiedown.Battery1Voltage\":%.1f},"
+			"{\"Tiedown.Battery2Voltage\":%.1f}\n", bv1, bv2))) { 
+			dbg("SUCCESS, LIGHT SLEEPING MINUTE");
+			esp_sleep_enable_timer_wakeup(60LL * uS_TO_S_FACTOR);
+			esp_light_sleep_start();
+			dbg("SUCCESS, DEEP SLEEPING MINUTE");
+			digitalWrite(pins.led, 0);
+			pinMode(18, INPUT);
+			esp_sleep_enable_timer_wakeup(3530LL * uS_TO_S_FACTOR);
 			esp_deep_sleep_start();
 		}
-		digitalWrite(pins.led, !digitalRead(pins.led));
-		dbg("LOOP %d %.1f %d", loopCount, bv, r);
-		if (r > 0) {
-			if (++postCount > 2) {
-				postCount = 0;
-				dbg("SLEEPING");
-				esp_sleep_enable_timer_wakeup(600 * uS_TO_S_FACTOR);
-				esp_deep_sleep_start();
-			}
+	
+		if(loopCount++ > 10) { 
+			dbg("TOO MANY RETRIES, SLEEPING");
+			digitalWrite(pins.led, 0);
+			pinMode(18, INPUT);
+			esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
+			esp_deep_sleep_start();
 		}
 	}
-	delay(10);
+	delay(50);
 }
 
