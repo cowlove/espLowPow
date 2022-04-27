@@ -4,7 +4,7 @@ BOARD=esp32doit-devkit-v1
 VERBOSE=1
 MONITOR_SPEED=921600
 
-GIT_VERSION := "$(shell git describe --abbrev=4 --dirty --always --tags)"
+GIT_VERSION := "$(shell git describe --abbrev=8 --dirty --always --tags)"
 BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
 backtrace:

@@ -2,6 +2,8 @@
 #include <PubSubClient.h>
 #include <HTTPClient.h>
 #include <MD5Builder.h>
+#include <ArduinoJson.h>
+
 
 
 JimWiFi jw("MOF-Guest", "");
@@ -196,44 +198,65 @@ void loop() {
 	}	
 	
 	if (sec.tick()) {
-		HTTPClient client;
-		client.begin("http://54.188.66.93/ota");
-  		int resp = client.GET();
-		dbg("HTTPClient.get() returned %d\n", resp);
-		if(resp == 200){
-			// get length of document (is -1 when Server sends no Content-Length header)
-			totalLength = client.getSize();
-			// transfer to local variable
-			int len = totalLength;
-			// this is required to start firmware update process
-			Update.begin(UPDATE_SIZE_UNKNOWN);
-			Serial.printf("FW Size: %u\n",totalLength);
-			// create buffer for read
-			uint8_t buff[128] = { 0 };
-			// get tcp stream
-			WiFiClient * stream = client.getStreamPtr();
-			// read all data from server
-			Serial.println("Updating firmware...");
-			while(client.connected() && (len > 0 || len == -1)) {
-				// get available data size
-				size_t size = stream->available();
-				if(size) {
-					// read up to 128 byte
-					int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-					// pass to function
-					updateFirmware(buff, c);
-					if(len > 0) {
-						len -= c;
-					}
-				}
-				delay(1);
-			}
-		}
 
 		float bv1 = avgAnalogRead(35);
 		float bv2 = avgAnalogRead(33);
-		if (remoteLog(Sfmt("{\"Tiedown.BatteryVoltage1\":%.1f},"
-			"{\"Tiedown.BatteryVoltage2\":%.1f}\n", bv1, bv2))) { 
+	
+		HTTPClient client;
+		client.begin("http://54.188.66.93/log");
+	
+		String s = Sfmt("{\"Tiedown.BatteryVoltage1\":%.1f,"
+			"\"Tiedown.BatteryVoltage2\":%.1f}\n", bv1, bv2);
+		client.addHeader("Content-Type", "application/json");
+		int r = client.POST(s.c_str());
+		s =  client.getString(); //"{\"ota_ver\":\"gps\",\"time\":1351824120,\"data\":[48.756080,2.302038]}\n";
+		client.end();
+
+		dbg("http.POST() returned %d and %s\n", r, s.c_str());
+ 		StaticJsonDocument<1024> doc;
+		DeserializationError error = deserializeJson(doc, s);
+		const char *ota_ver = doc["ota_ver"];
+		if (ota_ver != NULL) { 
+			if (strcmp(ota_ver, GIT_VERSION) == 0) {
+				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
+			} else { 
+				client.begin("http://54.188.66.93/ota");
+				int resp = client.GET();
+				dbg("HTTPClient.get() returned %d\n", resp);
+				if(resp == 200){
+					// get length of document (is -1 when Server sends no Content-Length header)
+					totalLength = client.getSize();
+					// transfer to local variable
+					int len = totalLength;
+					// this is required to start firmware update process
+					Update.begin(UPDATE_SIZE_UNKNOWN);
+					Serial.printf("FW Size: %u\n",totalLength);
+					// create buffer for read
+					uint8_t buff[128] = { 0 };
+					// get tcp stream
+					WiFiClient * stream = client.getStreamPtr();
+					// read all data from server
+					Serial.println("Updating firmware...");
+					while(client.connected() && (len > 0 || len == -1)) {
+						// get available data size
+						size_t size = stream->available();
+						if(size) {
+							// read up to 128 byte
+							int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+							// pass to function
+							updateFirmware(buff, c);
+							if(len > 0) {
+								len -= c;
+							}
+						}
+						delay(1);
+					}	
+				}
+
+			}	
+		}	  
+
+		if (0) { 
 			dbg("SUCCESS, LIGHT SLEEPING MINUTE");
 			delay(100);
 			esp_sleep_enable_timer_wakeup(60LL * uS_TO_S_FACTOR);
@@ -245,7 +268,11 @@ void loop() {
 			esp_sleep_enable_timer_wakeup(3530LL * uS_TO_S_FACTOR);
 			esp_deep_sleep_start();
 		}
-	
+
+		if (0) { 
+		}	
+
+
 		if(loopCount++ > 10) { 
 			if (WiFi.status() != WL_CONNECTED) {
 				dbg("NEVER CONNECTED, REBOOTING");
