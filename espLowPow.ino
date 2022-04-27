@@ -186,6 +186,7 @@ void webUpgrade(const char *url) {
 				esp_task_wdt_reset();
 				int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
 				Update.write(buff, c);
+				Serial.print(".");
 				currentLength += c;
 				if(currentLength == totalLength) {
 					Update.end(true);
@@ -230,6 +231,7 @@ void loop() {
 		client.begin("http://54.188.66.93/log");
 	
 		String mac = WiFi.macAddress();
+		mac.replace(":", "");
 		String s = Sfmt("{\"MAC\":\"%s\",\"Tiedown.BatteryVoltage1\":%.1f,"
 			"\"Tiedown.BatteryVoltage2\":%.1f}\n", mac.c_str(), bv1, bv2);
 		client.addHeader("Content-Type", "application/json");
