@@ -201,6 +201,8 @@ void webUpgrade(const char *url) {
 	}
 }
 
+int firstLoop = 1;
+float bv1, bv2;
 void loop() {
 	esp_task_wdt_reset();
 	jw.run();
@@ -216,8 +218,13 @@ void loop() {
 	
 	if (sec.tick()) {
 		int status = 0;
-		float bv1 = avgAnalogRead(35);
-		float bv2 = avgAnalogRead(33);
+		if (firstLoop) { 
+			bv1 = avgAnalogRead(35);
+			bv2 = avgAnalogRead(33);
+			firstLoop = 0;
+			pinMode(18, OUTPUT);
+			digitalWrite(18, 1);
+		}
 	
 		HTTPClient client;
 		client.begin("http://54.188.66.93/log");
@@ -236,11 +243,6 @@ void loop() {
 		const char *ota_ver = doc["ota_ver"];
 		status = doc["status"];
 
-		if (status == 1 || ota_ver != NULL) {
-			// turn on external battery 
-			pinMode(18, OUTPUT);
-			digitalWrite(18, 1);
-		}
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0) {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
