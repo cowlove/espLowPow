@@ -66,14 +66,13 @@ public:
 MQTTClient mqtt("192.168.4.1", "lowpow");
 
 void dbg(const char *format, ...) { 
-	return;
 	va_list args;
 	va_start(args, format);
 	char buf[256];
 	vsnprintf(buf, sizeof(buf), format, args);
 	va_end(args);
-	mqtt.publish("debug", buf);
-	jw.udpDebug(buf);
+	//mqtt.publish("debug", buf);
+	//jw.udpDebug(buf);
 	Serial.println(buf);
 }
 
@@ -95,11 +94,19 @@ bool remoteLog(const String &s) {
 	String mac = WiFi.macAddress();
 	mac.replace(":", "");
 	String o = String("{\"MAC\":\"" + mac + "\"},");
-	//s += "{\"SourceFile\":\"" __BASE_FILE__ "\"},";
+	//o += "{\"SourceFile\":\"" __BASE_FILE__ "\"},";
 	o += s;
 	dbg("LOG: %s", o.c_str());
 	WiFiClient client;
-	if (!client.connect("54.188.66.93", 80) || client.printf(o.c_str()) <= 0) {  
+	if (WiFi.status() != WL_CONNECTED) {
+		dbg("NOT CONNECTED");
+	}
+
+	int r = client.connect("54.188.66.93", 80);
+	dbg("connect() returned %d", r);
+	r = client.print(o.c_str());
+	if (r <= 0) {  
+		dbg("write() failed with %d", r);
 		return false;
 	}
 	String i = client.readStringUntil('\n');
@@ -113,6 +120,23 @@ bool remoteLog(const String &s) {
 	i.toLowerCase();
 	dbg("MD5 CALC: '%s' IN: '%s'\n", hash.c_str(), i.c_str());
 	return strstr(i.c_str(), hash.c_str()) != NULL;
+}
+
+int currentLength, totalLength;
+// Function to update firmware incrementally
+// Buffer is declared to be 128 so chunks of 128 bytes
+// from firmware is written to device until server closes
+void updateFirmware(uint8_t *data, size_t len){
+  Update.write(data, len);
+  currentLength += len;
+  // Print dots while waiting for update to finish
+  Serial.print('.');
+  // if current length of written firmware is not equal to total firmware size, repeat
+  if(currentLength != totalLength) return;
+  Update.end(true);
+  Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
+  // Restart ESP32 to see changes 
+  ESP.restart();
 }
 
 #define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
@@ -143,7 +167,8 @@ void setup() {
 	//}
 }
 
-EggTimer sec(10000), minute(60000);
+EggTimer sec(5000), minute(60000);
+EggTimer blink(100);
 int loopCount = 0;
 
 
@@ -156,7 +181,7 @@ float avgAnalogRead(int pin) {
 	return bv / avg;
 }
 
-EggTimer blink(100);
+
 void loop() {
 	esp_task_wdt_reset();
 	jw.run();
@@ -167,25 +192,65 @@ void loop() {
 
 	if (blink.tick()) { 
 		digitalWrite(pins.led, !digitalRead(pins.led));
-		dbg("adc: %6.1f %6.1f", avgAnalogRead(35), avgAnalogRead(33));
+		dbg("adc: %6.1f %6.1f %s", avgAnalogRead(35), avgAnalogRead(33), _GIT_VERSION);
 	}	
 	
 	if (sec.tick()) {
+		HTTPClient client;
+		client.begin("http://54.188.66.93/ota");
+  		int resp = client.GET();
+		dbg("HTTPClient.get() returned %d\n", resp);
+		if(resp == 200){
+			// get length of document (is -1 when Server sends no Content-Length header)
+			totalLength = client.getSize();
+			// transfer to local variable
+			int len = totalLength;
+			// this is required to start firmware update process
+			Update.begin(UPDATE_SIZE_UNKNOWN);
+			Serial.printf("FW Size: %u\n",totalLength);
+			// create buffer for read
+			uint8_t buff[128] = { 0 };
+			// get tcp stream
+			WiFiClient * stream = client.getStreamPtr();
+			// read all data from server
+			Serial.println("Updating firmware...");
+			while(client.connected() && (len > 0 || len == -1)) {
+				// get available data size
+				size_t size = stream->available();
+				if(size) {
+					// read up to 128 byte
+					int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+					// pass to function
+					updateFirmware(buff, c);
+					if(len > 0) {
+						len -= c;
+					}
+				}
+				delay(1);
+			}
+		}
+
 		float bv1 = avgAnalogRead(35);
 		float bv2 = avgAnalogRead(33);
-		if (remoteLog(Sfmt("{\"Tiedown.Battery1Voltage\":%.1f},"
-			"{\"Tiedown.Battery2Voltage\":%.1f}\n", bv1, bv2))) { 
+		if (remoteLog(Sfmt("{\"Tiedown.BatteryVoltage1\":%.1f},"
+			"{\"Tiedown.BatteryVoltage2\":%.1f}\n", bv1, bv2))) { 
 			dbg("SUCCESS, LIGHT SLEEPING MINUTE");
+			delay(100);
 			esp_sleep_enable_timer_wakeup(60LL * uS_TO_S_FACTOR);
 			esp_light_sleep_start();
 			dbg("SUCCESS, DEEP SLEEPING MINUTE");
 			digitalWrite(pins.led, 0);
 			pinMode(18, INPUT);
+			delay(100);
 			esp_sleep_enable_timer_wakeup(3530LL * uS_TO_S_FACTOR);
 			esp_deep_sleep_start();
 		}
 	
 		if(loopCount++ > 10) { 
+			if (WiFi.status() != WL_CONNECTED) {
+				dbg("NEVER CONNECTED, REBOOTING");
+				ESP.restart();
+			}
 			dbg("TOO MANY RETRIES, SLEEPING");
 			digitalWrite(pins.led, 0);
 			pinMode(18, INPUT);
