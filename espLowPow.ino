@@ -140,8 +140,6 @@ void setup() {
 
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.led, 0);
-	pinMode(18, OUTPUT);
-	digitalWrite(18, 1);
 
 	//delay(100);
 	//jw.run();
@@ -213,7 +211,7 @@ void loop() {
 
 	if (blink.tick()) { 
 		digitalWrite(pins.led, !digitalRead(pins.led));
-		dbg("adc: %6.1f %6.1f %s", avgAnalogRead(35), avgAnalogRead(33), _GIT_VERSION);
+		dbg("adc: %6.1f %6.1f", avgAnalogRead(35), avgAnalogRead(33));
 	}	
 	
 	if (sec.tick()) {
@@ -224,8 +222,9 @@ void loop() {
 		HTTPClient client;
 		client.begin("http://54.188.66.93/log");
 	
-		String s = Sfmt("{\"Tiedown.BatteryVoltage1\":%.1f,"
-			"\"Tiedown.BatteryVoltage2\":%.1f}\n", bv1, bv2);
+		String mac = WiFi.macAddress();
+		String s = Sfmt("{\"MAC\":\"%s\",\"Tiedown.BatteryVoltage1\":%.1f,"
+			"\"Tiedown.BatteryVoltage2\":%.1f}\n", mac.c_str(), bv1, bv2);
 		client.addHeader("Content-Type", "application/json");
 		int r = client.POST(s.c_str());
 		s =  client.getString();
@@ -236,6 +235,12 @@ void loop() {
 		DeserializationError error = deserializeJson(doc, s);
 		const char *ota_ver = doc["ota_ver"];
 		status = doc["status"];
+
+		if (status == 1 || ota_ver != NULL) {
+			// turn on external battery 
+			pinMode(18, OUTPUT);
+			digitalWrite(18, 1);
+		}
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0) {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
@@ -246,11 +251,14 @@ void loop() {
 		}	  
 
 		if (status == 1) { 
-			dbg("SUCCESS, LIGHT SLEEPING MINUTE");
+			dbg("SUCCESS, LIGHT SLEEPING 5 MINUTES");
 			delay(100);
-			esp_sleep_enable_timer_wakeup(60LL * uS_TO_S_FACTOR);
+			//adc_power_off();
+			WiFi.disconnect(true);  // Disconnect from the network
+			WiFi.mode(WIFI_OFF);    // Switch WiFi off
+			esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
 			esp_light_sleep_start();
-			dbg("SUCCESS, DEEP SLEEPING MINUTE");
+			dbg("SUCCESS, DEEP SLEEPING FOR AN HOUR MINUTE");
 			digitalWrite(pins.led, 0);
 			pinMode(18, INPUT);
 			delay(100);
