@@ -188,7 +188,7 @@ void webUpgrade(const char *u) {
 	int offset = 0;
 	int len = 1024 * 16;
 	int errors = 0;
-
+ 
 	Update.begin(UPDATE_SIZE_UNKNOWN);
 	Serial.println("Updating firmware...");
 
@@ -285,8 +285,8 @@ void loop() {
 	
 		String mac = WiFi.macAddress();
 		mac.replace(":", "");
-		String s = Sfmt("{\"MAC\":\"%s\",\"Tiedown.BatteryVoltage1\":%.1f,"
-			"\"Tiedown.BatteryVoltage2\":%.1f}\n", mac.c_str(), bv1, bv2);
+		String s = Sfmt("{\"GIT_VERSION\":\"%s\",\"MAC\":\"%s\",\"Tiedown.BatteryVoltage1\":%.1f,"
+			"\"Tiedown.BatteryVoltage2\":%.1f}\n", GIT_VERSION, mac.c_str(), bv1, bv2);
 		client.addHeader("Content-Type", "application/json");
 		r = client.POST(s.c_str());
 		//r = client.GET();
