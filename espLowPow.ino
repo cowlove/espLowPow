@@ -248,7 +248,7 @@ void loop() {
 		wc.setInsecure();
 		//wc.setFingerprint(fingerprint);
 		HTTPClient client;
-		int r = client.begin(wc, "https://54.188.66.93/log");
+		int r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
 		dbg("http.begin() returned %d\n", r);
  	
 	
@@ -278,7 +278,7 @@ void loop() {
 			} else { 
 				dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
 				while(1) { 
-					webUpgrade("https://54.188.66.93/ota");
+					webUpgrade("https://thingproxy.freeboard.io/fetch/https://vheavy.com/ota");
 				}
 			}	
 		}	  
