@@ -194,8 +194,10 @@ void webUpgrade(const char *url) {
 				esp_task_wdt_reset();
 				int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
 				Update.write(buff, c);
-				Serial.print(".");
 				currentLength += c;
+				if (currentLength % (sizeof(buff) * 20) == 0) { 
+					Serial.print(".");
+				}
 				if(currentLength == totalLength) {
 					Update.end(true);
 					Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
