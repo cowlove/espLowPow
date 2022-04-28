@@ -186,7 +186,8 @@ void webUpgrade(const char *u) {
 	HTTPClient client; 
 
 	int offset = 0;
-	int len = 1024 * 44;
+	int len = 1024 * 16;
+	int errors = 0;
 
 	Update.begin(UPDATE_SIZE_UNKNOWN);
 	Serial.println("Updating firmware...");
@@ -200,7 +201,11 @@ void webUpgrade(const char *u) {
 		if(resp != 200) {
 			dbg("Get failed\n");
 			Serial.print(client.getString());
-			return;
+			delay(5000);
+			if (++errors > 10) { 
+				return;
+			}
+			continue;
 		}
 		int currentLength = 0;
 		int	totalLength = client.getSize();
@@ -303,9 +308,7 @@ void loop() {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 			} else { 
 				dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
-				while(1) { 
-					webUpgrade("https://thingproxy.freeboard.io/fetch/https://vheavy.com/ota");
-				}
+				webUpgrade("https://thingproxy.freeboard.io/fetch/https://vheavy.com/ota");
 			}	
 		}	  
 
