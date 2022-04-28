@@ -153,7 +153,7 @@ void setup() {
 	//}
 }
 
-EggTimer sec(1000), minute(60000);
+EggTimer sec(2000), minute(60000);
 EggTimer blink(100);
 int loopCount = 0;
 
