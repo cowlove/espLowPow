@@ -153,7 +153,7 @@ void setup() {
 	//}
 }
 
-EggTimer sec(5000), minute(60000);
+EggTimer sec(1000), minute(60000);
 EggTimer blink(100);
 int loopCount = 0;
 
@@ -167,48 +167,74 @@ float avgAnalogRead(int pin) {
 	return bv / avg;
 }
 
-void webUpgrade(const char *url) {
+int hex2bin(const char *in, char *out, int l) { 
+        for (const char *p = in; p < in + l ; p += 2) { 
+                char b[3];
+                b[0] = p[0];
+                b[1] = p[1];
+                b[2] = 0;
+                int c;
+                sscanf(b, "%x", &c);
+                *(out++) = c;
+        }
+        return l / 2;
+}
+
+void webUpgrade(const char *u) {
 	WiFiClientSecure wc;
 	wc.setInsecure();
 	HTTPClient client; 
-	client.begin(wc, url);
-	int resp = client.GET();
-	dbg("HTTPClient.get() returned %d\n", resp);
-	if(resp != 200) {
-		dbg("Get failed\n");
-		Serial.print(client.getString());
-		delay(5000);
-	} else { 
+
+	int offset = 0;
+	int len = 1024 * 44;
+
+	Update.begin(UPDATE_SIZE_UNKNOWN);
+	Serial.println("Updating firmware...");
+
+	while(true) { 
+		String url = String(u) + Sfmt("?len=%d&offset=%d", len, offset);
+		dbg("offset %d, len %d, url %s", offset, len, url.c_str());
+		client.begin(wc, url);
+		int resp = client.GET();
+		//dbg("HTTPClient.get() returned %d\n", resp);
+		if(resp != 200) {
+			dbg("Get failed\n");
+			Serial.print(client.getString());
+			return;
+		}
 		int currentLength = 0;
 		int	totalLength = client.getSize();
 		int len = totalLength;
-		uint8_t buff[128] = { 0 };
+		uint8_t bbuf[128], tbuf[256];
 	
-		Update.begin(UPDATE_SIZE_UNKNOWN);
-		Serial.printf("FW Size: %u\n",totalLength);
+		//Serial.printf("FW Size: %u\n",totalLength);
+		if (totalLength == 0) { 
+			Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
+			Update.end(true);
+			ESP.restart();
+			return;				
+		}
+		
+		
 		WiFiClient * stream = client.getStreamPtr();
-		Serial.println("Updating firmware...");
-		while(client.connected() && (len > 0 || len == -1)) {
-			size_t size = stream->available();
-			if(size) {
+		while(client.connected() && len > 0) {
+			size_t avail = stream->available();
+			if(avail) {
 				esp_task_wdt_reset();
-				int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-				Update.write(buff, c);
-				currentLength += c;
-				if (currentLength % (sizeof(buff) * 20) == 0) { 
-					Serial.print(".");
-				}
-				if(currentLength == totalLength) {
-					Update.end(true);
-					Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
-					ESP.restart();
-				}
-				if(len > 0) {
-					len -= c;
+				int c = stream->readBytes(tbuf, ((avail > sizeof(tbuf)) ? sizeof(tbuf) : avail));
+				if (c > 0) {
+					hex2bin((const char *)tbuf, (char *)bbuf, c);
+					//dbg("Update with %d", c / 2);
+					Update.write(bbuf, c / 2);
+					if(len > 0) {
+						len -= c;
+					}
 				}
 			}
 			delay(1);
 		}	
+		client.end();
+		offset += totalLength / 2;
 	}
 }
 
@@ -299,7 +325,7 @@ void loop() {
 			esp_deep_sleep_start();
 		}
 
-		if(loopCount++ > 10) { 
+		if(loopCount++ > 30) { 
 			if (WiFi.status() != WL_CONNECTED) {
 				dbg("NEVER CONNECTED, REBOOTING");
 				ESP.restart();
