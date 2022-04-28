@@ -3,6 +3,8 @@
 #include <HTTPClient.h>
 #include <MD5Builder.h>
 #include <ArduinoJson.h>
+#include <WiFiClientSecure.h>
+
 
 
 
@@ -166,11 +168,17 @@ float avgAnalogRead(int pin) {
 }
 
 void webUpgrade(const char *url) {
+	WiFiClientSecure wc;
+	wc.setInsecure();
 	HTTPClient client; 
-	client.begin(url);
+	client.begin(wc, url);
 	int resp = client.GET();
 	dbg("HTTPClient.get() returned %d\n", resp);
-	if(resp == 200){
+	if(resp != 200) {
+		dbg("Get failed\n");
+		Serial.print(client.getString());
+		delay(5000);
+	} else { 
 		int currentLength = 0;
 		int	totalLength = client.getSize();
 		int len = totalLength;
@@ -202,6 +210,13 @@ void webUpgrade(const char *url) {
 	}
 }
 
+
+ 
+//const char *fingerprint="AD 1D 38 14 A8 11 BA E4 7C 63 2D 1F 8A 50 F9 C8 1E B1 FC 6D";
+const char *fingerprint="AD:1D:38:14:A8:11:BA:E4:7C:63:2D:1F:8A:50:F9:C8:1E:B1:FC:6D";
+//const char *fingerprint="AD1D3814A811BAE47C632D1F8A50F9C81EB1FC6D";	
+//"AD:1D:38:14:A8:11:BA:E4:7C:63:2D:1F:8A:50:F9:C8:1E:B1:FC:6D"
+
 int firstLoop = 1;
 float bv1, bv2;
 void loop() {
@@ -227,17 +242,27 @@ void loop() {
 			digitalWrite(18, 1);
 		}
 	
+		WiFiClientSecure wc;
+		wc.setInsecure();
+		//wc.setFingerprint(fingerprint);
 		HTTPClient client;
-		client.begin("http://54.188.66.93/log");
+		int r = client.begin(wc, "https://54.188.66.93/log");
+		dbg("http.begin() returned %d\n", r);
+ 	
 	
 		String mac = WiFi.macAddress();
 		mac.replace(":", "");
 		String s = Sfmt("{\"MAC\":\"%s\",\"Tiedown.BatteryVoltage1\":%.1f,"
 			"\"Tiedown.BatteryVoltage2\":%.1f}\n", mac.c_str(), bv1, bv2);
 		client.addHeader("Content-Type", "application/json");
-		int r = client.POST(s.c_str());
+		r = client.POST(s.c_str());
+		//r = client.GET();
 		s =  client.getString();
 		client.end();
+		if (WiFi.status() != WL_CONNECTED) {
+			dbg("NOT CONNECTED");
+		}
+
 		dbg("http.POST() returned %d and %s\n", r, s.c_str());
  	
 	 	StaticJsonDocument<1024> doc;
@@ -250,7 +275,9 @@ void loop() {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 			} else { 
 				dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
-				webUpgrade("http://54.188.66.93/ota");
+				while(1) { 
+					webUpgrade("https://54.188.66.93/ota");
+				}
 			}	
 		}	  
 
