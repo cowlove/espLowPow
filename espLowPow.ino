@@ -1,14 +1,53 @@
-#include "jimlib.h"
-#include <PubSubClient.h>
+//#include "jimlib.h"
 #include <HTTPClient.h>
-#include <MD5Builder.h>
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 
+#include <esp_task_wdt.h>
+#include <soc/soc.h>
+#include <soc/rtc_cntl_reg.h>
+#include <Update.h>			
 
 
 
-JimWiFi jw("MOF-Guest", "");
+String Sfmt(const char *format, ...) { 
+    va_list args;
+    va_start(args, format);
+	char buf[256];
+	vsnprintf(buf, sizeof(buf), format, args);
+    va_end(args);
+	return String(buf);
+}
+
+
+class EggTimer {
+	uint64_t last;
+	uint64_t interval; 
+	bool first = true;
+public:
+	EggTimer(float ms) : interval(ms * 1000), last(0) { reset(); }
+	bool tick() { 
+		uint64_t now = micros();
+		if (now - last >= interval) { 
+			last += interval;
+			// reset last to now if more than one full interval behind 
+			if (now - last >= interval) 
+				last = now;
+			return true;
+		} 
+		return false;
+	}
+	void reset() { 
+		last = micros();
+	}
+	void alarmNow() { 
+		last = 0;
+	}
+};
+
+
+
+//JimWiFi jw("MOF-Guest", "");
 //JimWiFi jw;
 
 struct {
@@ -20,6 +59,7 @@ struct {
 	int dummy2 = 22;
 } pins;
 
+#if 0 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
 class MQTTClient { 
@@ -66,20 +106,9 @@ public:
 		reconnect();
 	}
  };
- 
+
+
 MQTTClient mqtt("192.168.4.1", "lowpow");
-
-void dbg(const char *format, ...) { 
-	va_list args;
-	va_start(args, format);
-	char buf[256];
-	vsnprintf(buf, sizeof(buf), format, args);
-	va_end(args);
-	//mqtt.publish("debug", buf);
-	//jw.udpDebug(buf);
-	Serial.println(buf);
-}
-
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -94,47 +123,68 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
-bool remoteLog(const String &s) {
-	String mac = WiFi.macAddress();
-	mac.replace(":", "");
-	String o = String("{\"MAC\":\"" + mac + "\"},");
-	//o += "{\"SourceFile\":\"" __BASE_FILE__ "\"},";
-	o += s;
-	dbg("LOG: %s", o.c_str());
-	WiFiClient client;
-	if (WiFi.status() != WL_CONNECTED) {
-		dbg("NOT CONNECTED");
-	}
+#endif
 
-	int r = client.connect("54.188.66.93", 80);
-	dbg("connect() returned %d", r);
-	r = client.print(o.c_str());
-	if (r <= 0) {  
-		dbg("write() failed with %d", r);
-		return false;
-	}
-	String i = client.readStringUntil('\n');
-	client.stop();
-	MD5Builder md5;
-	md5.begin();
-	md5.add(o.c_str());
-	md5.calculate();
-	String hash = md5.toString();
-	hash.toLowerCase();
-	i.toLowerCase();
-	dbg("MD5 CALC: '%s' IN: '%s'\n", hash.c_str(), i.c_str());
-	return strstr(i.c_str(), hash.c_str()) != NULL;
+void dbg(const char *format, ...) { 
+	va_list args;
+	va_start(args, format);
+	char buf[256];
+	vsnprintf(buf, sizeof(buf), format, args);
+	va_end(args);
+	//mqtt.publish("debug", buf);
+	//jw.udpDebug(buf);
+	Serial.println(buf);
 }
-
-
+	
 #define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP 30
+
+
+void WiFiAutoConnect() { 
+	const struct {
+		const char *name;
+		const char *pass;
+	} aps[] = {	{"MOF-Guest", ""}, 
+				{"ChloeNet", "niftyprairie7"},
+				{"Team America", "51a52b5354"},  
+				{"TUK-FIRE", "FD priv n3t 20 q4"}};
+	WiFi.disconnect(true);
+	WiFi.mode(WIFI_STA);
+	WiFi.setSleep(false);
+
+	int bestMatch = -1;
+
+	int n = WiFi.scanNetworks();
+	Serial.println("scan done");
+	
+	if (n == 0) {
+		Serial.println("no networks found");
+	} else {
+		Serial.printf("%d networks found\n", n);
+		for (int i = 0; i < n; ++i) {
+		// Print SSID and RSSI for each network found
+			Serial.printf("%3d: %s (%d)\n", i + 1, WiFi.SSID(i).c_str(), WiFi.RSSI());
+			for (int j = 0; j < sizeof(aps)/sizeof(aps[0]); j++) { 				
+				if (strcmp(WiFi.SSID(i).c_str(), aps[j].name) == 0) { 
+					if (bestMatch == -1 || j < bestMatch) {
+						bestMatch = j;
+					}
+				}
+			}	
+		}
+	}
+	if (bestMatch == -1) {
+		bestMatch = 0;
+	}
+	Serial.printf("Using WiFi AP '%s'...\n", aps[bestMatch].name);
+	WiFi.begin(aps[bestMatch].name, aps[bestMatch].pass);
+}
 
 void setup() {
 	Serial.begin(921600, SERIAL_8N1);
 	Serial.println("Restart");	
 	
-	esp_task_wdt_init(30, true);
+	esp_task_wdt_init(60, true);
 	esp_task_wdt_add(NULL);
 
 	//pinMode(35, INPUT);
@@ -143,14 +193,7 @@ void setup() {
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.led, 0);
 
-	//delay(100);
-	//jw.run();
-	//Serial.println("setup() finished");
-	//delay(100);
-	//if (WiFi.status() != WL_CONNECTED) {
-	//		esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
-	//	esp_deep_sleep_start();
-	//}
+	WiFiAutoConnect();
 }
 
 EggTimer sec(2000), minute(60000);
@@ -243,21 +286,15 @@ void webUpgrade(const char *u) {
 }
 
 
- 
-//const char *fingerprint="AD 1D 38 14 A8 11 BA E4 7C 63 2D 1F 8A 50 F9 C8 1E B1 FC 6D";
-const char *fingerprint="AD:1D:38:14:A8:11:BA:E4:7C:63:2D:1F:8A:50:F9:C8:1E:B1:FC:6D";
-//const char *fingerprint="AD1D3814A811BAE47C632D1F8A50F9C81EB1FC6D";	
-//"AD:1D:38:14:A8:11:BA:E4:7C:63:2D:1F:8A:50:F9:C8:1E:B1:FC:6D"
-
 int firstLoop = 1;
 float bv1, bv2;
 void loop() {
 	esp_task_wdt_reset();
-	jw.run();
+	//jw.run();
 	//mqtt.run();
-    if (jw.updateInProgress) {
-		return;
-	}
+    //if (jw.updateInProgress) {
+	//		return;
+	//}
 
 	if (blink.tick()) { 
 		digitalWrite(pins.led, !digitalRead(pins.led));
@@ -330,7 +367,7 @@ void loop() {
 		if(loopCount++ > 30) { 
 			if (WiFi.status() != WL_CONNECTED) {
 				dbg("NEVER CONNECTED, REBOOTING");
-				ESP.restart();
+				//ESP.restart();
 			}
 			dbg("TOO MANY RETRIES, SLEEPING");
 			digitalWrite(pins.led, 0);
