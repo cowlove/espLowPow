@@ -157,7 +157,6 @@ EggTimer sec(2000), minute(60000);
 EggTimer blink(100);
 int loopCount = 0;
 
-
 float avgAnalogRead(int pin) { 
 	float bv = 0;
 	const int avg = 1024;
@@ -286,7 +285,7 @@ void loop() {
 		String mac = WiFi.macAddress();
 		mac.replace(":", "");
 		String s = Sfmt("{\"GIT_VERSION\":\"%s\",\"MAC\":\"%s\",\"Tiedown.BatteryVoltage1\":%.1f,"
-			"\"Tiedown.BatteryVoltage2\":%.1f}\n", GIT_VERSION, mac.c_str(), bv1, bv2);
+			"\"Tiedown.BatteryVoltage2\":%.1f}\n", GIT_VERSION,	 mac.c_str(), bv1, bv2);
 		client.addHeader("Content-Type", "application/json");
 		r = client.POST(s.c_str());
 		//r = client.GET();
@@ -320,7 +319,7 @@ void loop() {
 			WiFi.mode(WIFI_OFF);    // Switch WiFi off
 			esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
 			esp_light_sleep_start();
-			dbg("SUCCESS, DEEP SLEEPING FOR AN HOUR MINUTE");
+			dbg("SUCCESS, DEEP SLEEPING FOR AN HOUR");
 			digitalWrite(pins.led, 0);
 			pinMode(18, INPUT);
 			delay(100);
