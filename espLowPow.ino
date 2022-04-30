@@ -315,7 +315,6 @@ void loop() {
 			int r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
 			dbg("http.begin() returned %d\n", r);
 		
-		
 			String mac = WiFi.macAddress();
 			mac.replace(":", "");
 			String s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
@@ -349,14 +348,17 @@ void loop() {
 				}	
 			}	  
 
-			if (status == 1) { 
-				dbg("SUCCESS, LIGHT SLEEPING 5 MINUTES");
-				delay(100);
-				//adc_power_off();
-				WiFi.disconnect(true);  // Disconnect from the network
-				WiFi.mode(WIFI_OFF);    // Switch WiFi off
-				esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
-				esp_light_sleep_start();
+			if (status == 1) {
+				if (bv1 < 2500) {
+					// ESP lipo battery is low, charge it by light sleeping a while with 12V on  
+					dbg("SUCCESS, LIGHT SLEEPING 5 MINUTES");
+					delay(100);
+					//adc_power_off();
+					WiFi.disconnect(true);  // Disconnect from the network
+					WiFi.mode(WIFI_OFF);    // Switch WiFi off
+					esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
+					esp_light_sleep_start();
+				}
 				dbg("SUCCESS, DEEP SLEEPING FOR AN HOUR");
 				digitalWrite(pins.led, 0);
 				pinMode(pins.powerControlPin, INPUT);
