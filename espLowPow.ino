@@ -304,6 +304,10 @@ void loop() {
 			bv1 = avgAnalogRead(35);
 			bv2 = avgAnalogRead(33);
 			firstLoop = 0;
+			if (bv1 < 2500) {
+				pinMode(pins.powerControlPin, OUTPUT);
+				digitalWrite(pins.powerControlPin, 1);
+			}
 		}
 		
 		if (WiFi.status() == WL_CONNECTED) {
@@ -322,9 +326,6 @@ void loop() {
 				Sfmt("\"Power12V\":%d,", digitalRead(pins.powerControlPin)) + 
 				Sfmt("\"Tiedown.BatteryVoltage1\":%.1f,", bv1) + 
 				Sfmt("\"Tiedown.BatteryVoltage2\":%.1f}\n", bv2);
-
-			pinMode(pins.powerControlPin, OUTPUT);
-			digitalWrite(pins.powerControlPin, 1);
 
 			client.addHeader("Content-Type", "application/json");
 			r = client.POST(s.c_str());
@@ -358,7 +359,7 @@ void loop() {
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
 					esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
 					esp_light_sleep_start();
-				}
+				}	
 				dbg("SUCCESS, DEEP SLEEPING FOR AN HOUR");
 				digitalWrite(pins.led, 0);
 				pinMode(pins.powerControlPin, INPUT);
