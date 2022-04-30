@@ -304,7 +304,7 @@ void loop() {
 			bv1 = avgAnalogRead(35);
 			bv2 = avgAnalogRead(33);
 			firstLoop = 0;
-			if (bv1 < 2500) {
+			if (bv1 < 2360) {
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 			}
@@ -350,7 +350,7 @@ void loop() {
 			}	  
 
 			if (status == 1) {
-				if (bv1 < 2500) {
+				if (digitalRead(pins.powerControlPin) == 1) {
 					// ESP lipo battery is low, charge it by light sleeping a while with 12V on  
 					dbg("SUCCESS, LIGHT SLEEPING 5 MINUTES");
 					delay(100);
