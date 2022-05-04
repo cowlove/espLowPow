@@ -188,7 +188,7 @@ void setup() {
 
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.led, 0);
-	//pinMode(pins.powerControlPin, INPUT);
+	pinMode(pins.powerControlPin, INPUT);
 
 	WiFiAutoConnect();
 }
