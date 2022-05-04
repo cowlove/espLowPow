@@ -12,26 +12,27 @@ const morgan = require('morgan')
 
 var credentials = {key: privateKey, cert: certificate};
 
-const port = 80 
 const { spawn } = require('child_process');
 
 var httpServer = http.createServer(app);
 var httpsServer = https.createServer(credentials, app);
 
-
 app.use(bp.json())
 app.use(bp.urlencoded({ extended: true }))
-app.use(morgan("combined"))
+//app.use(morgan("combined"))
 
 app.get('/', (req, res) => {
     const ps = spawn('sh', ['test.sh']);
     res.writeHead(200, {'Content-Type': 'text/html'});
     ps.stdout.pipe(res)
 })
-app.get('/ota', (req, res) => {
+app.get('/graph', (req, res) => {
+  res.sendFile('p.png', { root: __dirname });
+});
 
-  var SIZE = parseInt(req.query.len); // 64 byte intervals
-  var offset = parseInt(req.query.offset);
+app.get('/ota', (req, res) => {
+  var SIZE = parseInt(req.query.len); // size of file rad 
+  var offset = parseInt(req.query.offset); // offset of file read 
   fs.open("./firmware.bin", 'r', function(err, fd) {
     fs.fstat(fd, function(err, stats) {
       var buffer = new Buffer.alloc(SIZE);
@@ -49,12 +50,6 @@ app.post('/log', (req, res) => {
 	const ver = fs.readFileSync("firmware.ver").toString().replace(/\s/g, '')
 	res.json({ "ota_ver" : ver, "status" : 1 })
 })
-
-
-//app.listen(port,() => {
-//console.log("Started on PORT 3000");
-//})
-
 
 httpServer.listen(80);
 httpsServer.listen(443);

@@ -353,13 +353,16 @@ void loop() {
 				if (digitalRead(pins.powerControlPin) == 1) {
 					// ESP lipo battery is low, charge it by light sleeping a while with 12V on  
 					dbg("SUCCESS, LIGHT SLEEPING");
-					delay(100);
 					//adc_power_off();
 					WiFi.disconnect(true);  // Disconnect from the network
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
+					gpio_hold_en(GPIO_NUM_18);
+					delay(100);
+
 					esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
 					esp_light_sleep_start();
 					digitalWrite(pins.led, 0);
+					gpio_hold_dis(GPIO_NUM_18);
 					pinMode(pins.powerControlPin, INPUT);
 					delay(100);
 					ESP.restart();					
