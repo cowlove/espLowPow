@@ -299,6 +299,24 @@ void loop() {
 	}	
 	
 	if (sec.tick()) {
+		if (0) { 
+			int p = 25;
+			pinMode(p, OUTPUT);
+			digitalWrite(p, !digitalRead(p));
+			dbg("OUTPUT %d\n", digitalRead(p));
+			if (1) { 
+				delay(1000);
+				dbg("SLEEP %d\n", digitalRead(p));
+				gpio_hold_en(GPIO_NUM_25);
+				delay(100);
+				esp_sleep_enable_timer_wakeup(3LL * uS_TO_S_FACTOR);
+				esp_light_sleep_start();
+				gpio_hold_dis(GPIO_NUM_25);
+				dbg("WAKE %d\n", digitalRead(p));
+			}
+			return;
+		}		
+
 		int status = 0;
 		if (firstLoop) { 
 			bv1 = avgAnalogRead(35);
@@ -356,6 +374,14 @@ void loop() {
 					//adc_power_off();
 					WiFi.disconnect(true);  // Disconnect from the network
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
+
+					if (1) {
+						// investigate why light_sleep isn't working 
+						for(int i = 0; i < 23 * 60; i++) {
+							delay(1000);
+						}
+						ESP.restart();
+					}
 					gpio_hold_en(GPIO_NUM_18);
 					delay(100);
 
