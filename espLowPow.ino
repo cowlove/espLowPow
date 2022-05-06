@@ -375,9 +375,10 @@ void loop() {
 					WiFi.disconnect(true);  // Disconnect from the network
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
 
-					if (0) {
+					if (1) {
 						// investigate why light_sleep isn't working 
 						for(int i = 0; i < 23 * 60; i++) {
+							esp_task_wdt_reset();
 							delay(1000);
 						}
 						ESP.restart();
