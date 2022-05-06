@@ -375,7 +375,7 @@ void loop() {
 					WiFi.disconnect(true);  // Disconnect from the network
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
 
-					if (1) {
+					if (0) {
 						// investigate why light_sleep isn't working 
 						for(int i = 0; i < 23 * 60; i++) {
 							delay(1000);

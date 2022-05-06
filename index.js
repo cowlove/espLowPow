@@ -13,6 +13,7 @@ const morgan = require('morgan')
 var credentials = {key: privateKey, cert: certificate};
 
 const { spawn } = require('child_process');
+const execSync = require('child_process').execSync;
 
 var httpServer = http.createServer(app);
 var httpsServer = https.createServer(credentials, app);
@@ -27,7 +28,12 @@ app.get('/', (req, res) => {
     ps.stdout.pipe(res)
 })
 app.get('/graph', (req, res) => {
+  execSync('sudo -iu ec2-user /home/ec2-user/simplePost/graph.sh');
   res.sendFile('p.png', { root: __dirname });
+});
+app.get('/fils', (req, res) => {
+  var f = req.query.f;
+  res.sendFile(f, { root: __dirname });
 });
 
 app.get('/ota', (req, res) => {
