@@ -383,13 +383,15 @@ void loop() {
 						}
 						ESP.restart();
 					}
-					gpio_hold_en(GPIO_NUM_18);
+					gpio_hold_en((gpio_num_t)18);
+					gpio_deep_sleep_hold_en();
 					delay(100);
 
 					esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
-					esp_light_sleep_start();
+					esp_deep_sleep_start();
+									
 					digitalWrite(pins.led, 0);
-					gpio_hold_dis(GPIO_NUM_18);
+					gpio_hold_dis((gpio_num_t)18);
 					pinMode(pins.powerControlPin, INPUT);
 					delay(100);
 					ESP.restart();					
