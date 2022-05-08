@@ -8,7 +8,8 @@
 #include <soc/rtc_cntl_reg.h>
 #include <Update.h>			
 
-
+#include "PubSubClient.h"
+#include "ArduinoOTA.h"
 
 String Sfmt(const char *format, ...) { 
     va_list args;
@@ -53,9 +54,12 @@ public:
 struct {
 	int led = 5;
 	int powerControlPin = 18;
+	int fanPower = 25;
+	int fanPwm = 27;
 } pins;
 
-#if 0 
+//#define MQTT
+#ifdef MQTT 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
 class MQTTClient { 
@@ -119,15 +123,23 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
-#endif
+#else // MQTT
 
+struct {
+	void dprintf(const char *, ...) {}
+	void run() {};
+	void publish(const char *suffix, const char *m) {}
+	void publish(const char *suffix, const String &m) {}
+} mqtt;
+
+#endif // #else MQTT
 void dbg(const char *format, ...) { 
 	va_list args;
 	va_start(args, format);
 	char buf[256];
 	vsnprintf(buf, sizeof(buf), format, args);
 	va_end(args);
-	//mqtt.publish("debug", buf);
+	mqtt.publish("debug", buf);
 	//jw.udpDebug(buf);
 	Serial.println(buf);
 }
@@ -190,7 +202,12 @@ void setup() {
 	digitalWrite(pins.led, 0);
 	pinMode(pins.powerControlPin, INPUT);
 
+	pinMode(pins.fanPwm, OUTPUT);
+	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
+	ledcAttachPin(pins.fanPwm, 0);
+
 	WiFiAutoConnect();
+	ArduinoOTA.begin();
 }
 
 EggTimer sec(2000), minute(60000);
@@ -288,31 +305,65 @@ float bv1, bv2;
 void loop() {
 	esp_task_wdt_reset();
 	//jw.run();
-	//mqtt.run();
+	mqtt.run();
+	ArduinoOTA.handle();
     //if (jw.updateInProgress) {
 	//		return;
 	//}
 
-	if (blink.tick()) { 
+	if (0 && blink.tick()) { 
 		digitalWrite(pins.led, !digitalRead(pins.led));
-		dbg("adc: %6.1f %6.1f", avgAnalogRead(35), avgAnalogRead(33));
 	}	
 	
 	if (sec.tick()) {
 		if (0) { 
-			int p = 25;
-			pinMode(p, OUTPUT);
-			digitalWrite(p, !digitalRead(p));
-			dbg("OUTPUT %d\n", digitalRead(p));
-			if (1) { 
+			ledcWrite(0, 00 * 4915 / 1500);
+			pinMode(pins.fanPower, OUTPUT);
+			digitalWrite(pins.fanPower, !digitalRead(pins.fanPower));
+			dbg("OUTPUT %d\n", digitalRead(pins.fanPower));
+		
+            //dbg("%d %s    " __BASE_FILE__ "   " __DATE__ "   " __TIME__, (int)(millis() / 1000), WiFi.localIP().toString().c_str());
+
+			//delay(5000);
+			dbg("pwm on");
+			//ledcWrite(0, 800 * 4915 / 1500);
+
+			
+			//delay(5000);
+			if (digitalRead(pins.fanPower) == 1) {
+				if (millis() < 20000) {  
+					return;
+				}
+				gpio_hold_en((gpio_num_t)pins.fanPower);
+				gpio_deep_sleep_hold_en();
+				dbg("sleep");
+				delay(100);
+			
+				esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
+				esp_deep_sleep_start();
+			
+			
+				dbg("fan on");
+				ledcWrite(0, 2000 * 4915 / 1500);
+				delay(150);
+				ledcWrite(0, 1050 * 4915 / 1500);
+				for(int s = 0; s < 60; s++) { 
+					delay(1000);
+					esp_task_wdt_reset();
+				}
+				dbg("fan off");
+	
+			}
+			//ledcWrite(0, 1000 * 4915 / 1500);
+
+			if (0) { 
 				delay(1000);
-				dbg("SLEEP %d\n", digitalRead(p));
-				gpio_hold_en(GPIO_NUM_25);
+				gpio_hold_en((gpio_num_t)pins.fanPower);
+				gpio_deep_sleep_hold_en();
 				delay(100);
 				esp_sleep_enable_timer_wakeup(3LL * uS_TO_S_FACTOR);
-				esp_light_sleep_start();
-				gpio_hold_dis(GPIO_NUM_25);
-				dbg("WAKE %d\n", digitalRead(p));
+				//esp_light_sleep_start();
+				gpio_hold_dis((gpio_num_t)pins.fanPower);
 			}
 			return;
 		}		
@@ -359,7 +410,10 @@ void loop() {
 			status = doc["status"];
 
 			if (ota_ver != NULL) { 
-				if (strcmp(ota_ver, GIT_VERSION) == 0) {
+				if (strcmp(ota_ver, GIT_VERSION) == 0
+					// dont update an existing -dirty unless ota_ver is also -dirty  
+					|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+					) {
 					dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 				} else { 
 					dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
@@ -368,13 +422,19 @@ void loop() {
 			}	  
 
 			if (status == 1) {
+				if (bv2 > 1380) {
+					pinMode(pins.fanPower, OUTPUT);
+					digitalWrite(pins.fanPower, 1);
+					gpio_hold_en((gpio_num_t)pins.fanPower);
+					gpio_deep_sleep_hold_en();
+				}
+
 				if (digitalRead(pins.powerControlPin) == 1) {
 					// ESP lipo battery is low, charge it by light sleeping a while with 12V on  
 					dbg("SUCCESS, LIGHT SLEEPING");
 					//adc_power_off();
 					WiFi.disconnect(true);  // Disconnect from the network
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
-
 					if (1) {
 						// investigate why light_sleep isn't working 
 						for(int i = 0; i < 23 * 60; i++) {
@@ -383,7 +443,7 @@ void loop() {
 						}
 						ESP.restart();
 					}
-					gpio_hold_en((gpio_num_t)18);
+					gpio_hold_en((gpio_num_t)pins.powerControlPin);
 					gpio_deep_sleep_hold_en();
 					delay(100);
 
@@ -391,7 +451,7 @@ void loop() {
 					esp_deep_sleep_start();
 									
 					digitalWrite(pins.led, 0);
-					gpio_hold_dis((gpio_num_t)18);
+					gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 					pinMode(pins.powerControlPin, INPUT);
 					delay(100);
 					ESP.restart();					
