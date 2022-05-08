@@ -422,7 +422,7 @@ void loop() {
 			}	  
 
 			if (status == 1) {
-				if (bv2 > 1380) {
+				if (bv2 > 1390) {
 					pinMode(pins.fanPower, OUTPUT);
 					digitalWrite(pins.fanPower, 1);
 					gpio_hold_en((gpio_num_t)pins.fanPower);
@@ -435,7 +435,7 @@ void loop() {
 					//adc_power_off();
 					WiFi.disconnect(true);  // Disconnect from the network
 					WiFi.mode(WIFI_OFF);    // Switch WiFi off
-					if (1) {
+					if (0) {
 						// investigate why light_sleep isn't working 
 						for(int i = 0; i < 23 * 60; i++) {
 							esp_task_wdt_reset();
