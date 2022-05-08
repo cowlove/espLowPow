@@ -189,6 +189,12 @@ void WiFiAutoConnect() {
 }
 
 void setup() {
+
+	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
+	gpio_hold_dis((gpio_num_t)pins.fanPower);
+	gpio_deep_sleep_hold_dis();
+
+
 	Serial.begin(921600, SERIAL_8N1);
 	Serial.println("Restart");	
 	
@@ -205,6 +211,9 @@ void setup() {
 	pinMode(pins.fanPwm, OUTPUT);
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.fanPwm, 0);
+
+	pinMode(pins.fanPower, OUTPUT);
+	digitalWrite(pins.fanPower, 0);
 
 	WiFiAutoConnect();
 	ArduinoOTA.begin();
@@ -422,12 +431,8 @@ void loop() {
 			}	  
 
 			if (status == 1) {
-				if (bv2 > 1390) {
-					pinMode(pins.fanPower, OUTPUT);
-					digitalWrite(pins.fanPower, 1);
-					gpio_hold_en((gpio_num_t)pins.fanPower);
-					gpio_deep_sleep_hold_en();
-				}
+				gpio_hold_en((gpio_num_t)pins.fanPower);
+				gpio_deep_sleep_hold_en();
 
 				if (digitalRead(pins.powerControlPin) == 1) {
 					// ESP lipo battery is low, charge it by light sleeping a while with 12V on  
