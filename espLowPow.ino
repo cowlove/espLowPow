@@ -259,6 +259,7 @@ void webUpgrade(const char *u) {
 	Serial.println("Updating firmware...");
 
 	while(true) { 
+		esp_task_wdt_reset();
 		String url = String(u) + Sfmt("?len=%d&offset=%d", len, offset);
 		dbg("offset %d, len %d, url %s", offset, len, url.c_str());
 		client.begin(wc, url);
@@ -291,7 +292,6 @@ void webUpgrade(const char *u) {
 		while(client.connected() && len > 0) {
 			size_t avail = stream->available();
 			if(avail) {
-				esp_task_wdt_reset();
 				int c = stream->readBytes(tbuf, ((avail > sizeof(tbuf)) ? sizeof(tbuf) : avail));
 				if (c > 0) {
 					hex2bin((const char *)tbuf, (char *)bbuf, c);
