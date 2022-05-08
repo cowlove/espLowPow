@@ -206,7 +206,8 @@ void setup() {
 
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.led, 0);
-	pinMode(pins.powerControlPin, INPUT);
+	pinMode(pins.powerControlPin, OUTPUT);
+	pinMode(pins.powerControlPin, 0);
 
 	pinMode(pins.fanPwm, OUTPUT);
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
