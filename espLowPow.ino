@@ -432,6 +432,7 @@ void loop() {
 			}	  
 
 			if (status == 1) {
+				digitalWrite(pins.fanPower, (bv2 > 1380));
 				gpio_hold_en((gpio_num_t)pins.fanPower);
 				gpio_deep_sleep_hold_en();
 
