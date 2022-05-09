@@ -391,7 +391,7 @@ void loop() {
 			firstLoop = 0;
 		}
 		if (WiFi.status() == WL_CONNECTED) {
-			if (bv1 < 2430) {
+			if (bv1 < 2400) {
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 				gpio_hold_en((gpio_num_t)pins.powerControlPin);
