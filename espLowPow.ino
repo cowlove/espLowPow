@@ -47,10 +47,6 @@ public:
 };
 
 
-
-//JimWiFi jw("MOF-Guest", "");
-//JimWiFi jw;
-
 struct {
 	int led = 5;
 	int powerControlPin = 18;
@@ -60,7 +56,7 @@ struct {
 	int bv2 = 33;
 } pins;
 
-#define MQTT
+//#define MQTT
 #ifdef MQTT 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
@@ -68,6 +64,7 @@ class MQTTClient {
 	WiFiClient espClient;
 	String topicPrefix, server;
 public:
+	bool active = true;
 	PubSubClient client;
 	MQTTClient(const char *s, const char *t) : server(s), topicPrefix(t), client(espClient) {}
 	void publish(const char *suffix, const char *m) { 
@@ -79,7 +76,7 @@ public:
 	}
 	void reconnect() {
 	// Loop until we're reconnected
-		if (WiFi.status() != WL_CONNECTED || client.connected()) 
+		if (active == false || WiFi.status() != WL_CONNECTED || client.connected()) 
 			return;
 		
 		Serial.print("Attempting MQTT connection...");
@@ -104,8 +101,10 @@ public:
 		client.publish((topicPrefix + "/debug").c_str(), buf);
 	}
 	void run() { 
-		client.loop();
-		reconnect();
+		if (active) { 
+			client.loop();
+			reconnect();
+		}
 	}
  };
 
@@ -446,7 +445,7 @@ void loop() {
 
 			if (status == 1) {
 				dbg("SLEEPING");
-				while(1) { 
+				while(0) { 
 					esp_task_wdt_reset();
 					ArduinoOTA.handle();
 					delay(10);
