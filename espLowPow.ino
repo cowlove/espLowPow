@@ -191,11 +191,11 @@ void WiFiAutoConnect() {
 }
 
 void setup() {
-
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
+	pinMode(pins.powerControlPin, INPUT);
+	pinMode(pins.fanPower, INPUT);
 	gpio_deep_sleep_hold_dis();
-
 
 	Serial.begin(921600, SERIAL_8N1);
 	Serial.println("Restart");	
@@ -208,15 +208,10 @@ void setup() {
 
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.led, 0);
-	pinMode(pins.powerControlPin, OUTPUT);
-	pinMode(pins.powerControlPin, 0);
 
-	pinMode(pins.fanPwm, OUTPUT);
-	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
-	ledcAttachPin(pins.fanPwm, 0);
-
-	pinMode(pins.fanPower, OUTPUT);
-	digitalWrite(pins.fanPower, 0);
+	//pinMode(pins.fanPwm, OUTPUT);
+	//ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
+	//ledcAttachPin(pins.fanPwm, 0);
 
 	WiFiAutoConnect();
 	ArduinoOTA.begin();
@@ -323,6 +318,7 @@ void loop() {
 	//		return;
 	//}
 
+#if 0
 	for(int p = 0; p < 44; p++) { 
 		float f = avgAnalogRead(p);
 		Serial.printf("%02d: %6.1f ", p, f);
@@ -332,7 +328,8 @@ void loop() {
 	if (1 && blink.tick()) {
 		dbg("bv1: %6.1f, bv2: %6.1f", avgAnalogRead(pins.bv1), avgAnalogRead(pins.bv2)); 
 		digitalWrite(pins.led, !digitalRead(pins.led));
-	}	
+	}
+#endif	
 	
 	if (sec.tick()) {
 		if (0) { 
@@ -392,12 +389,7 @@ void loop() {
 			bv1 = avgAnalogRead(pins.bv1);
 			bv2 = avgAnalogRead(pins.bv2);
 			firstLoop = 0;
-			if (bv1 < 2440) {
-				pinMode(pins.powerControlPin, OUTPUT);
-				digitalWrite(pins.powerControlPin, 1);
-			}
 		}
-		
 		if (WiFi.status() == WL_CONNECTED) {
 
 			WiFiClientSecure wc;
@@ -441,45 +433,35 @@ void loop() {
 			}	  
 
 			if (status == 1) {
-				digitalWrite(pins.fanPower, (bv2 > 1380));
-				gpio_hold_en((gpio_num_t)pins.fanPower);
-				gpio_deep_sleep_hold_en();
-
-				if (digitalRead(pins.powerControlPin) == 1) {
-					// ESP lipo battery is low, charge it by light sleeping a while with 12V on  
-					dbg("SUCCESS, LIGHT SLEEPING");
-					//adc_power_off();
-					WiFi.disconnect(true);  // Disconnect from the network
-					WiFi.mode(WIFI_OFF);    // Switch WiFi off
-					if (0) {
-						// investigate why light_sleep isn't working 
-						for(int i = 0; i < 23 * 60; i++) {
-							esp_task_wdt_reset();
-							delay(1000);
-						}
-						ESP.restart();
-					}
+				if (bv1 < 2430) {
+					pinMode(pins.powerControlPin, OUTPUT);
+					digitalWrite(pins.powerControlPin, 1);
 					gpio_hold_en((gpio_num_t)pins.powerControlPin);
 					gpio_deep_sleep_hold_en();
-					delay(100);
-
-					esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
-					esp_deep_sleep_start();
-									
-					digitalWrite(pins.led, 0);
-					gpio_hold_dis((gpio_num_t)pins.powerControlPin);
-					pinMode(pins.powerControlPin, INPUT);
-					delay(100);
-					ESP.restart();					
-				} else { 
-					dbg("SUCCESS, DEEP SLEEPING");
-					digitalWrite(pins.led, 0);
-					pinMode(pins.powerControlPin, INPUT);
-					delay(100);
-					//esp_sleep_enable_timer_wakeup(53LL * 60 * uS_TO_S_FACTOR);
-					esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
-					esp_deep_sleep_start();
 				}
+				if (bv2 > 1380) {
+					pinMode(pins.fanPower, OUTPUT);
+					digitalWrite(pins.fanPower, 1);
+					gpio_hold_en((gpio_num_t)pins.fanPower);
+					gpio_deep_sleep_hold_en();
+				}
+	
+				dbg("SLEEPING");
+				//adc_power_off();
+				WiFi.disconnect(true);  // Disconnect from the network
+				WiFi.mode(WIFI_OFF);    // Switch WiFi off
+				if (0) {
+					// investigate why light_sleep isn't working 
+					for(int i = 0; i < 23 * 60; i++) {
+						esp_task_wdt_reset();
+						delay(1000);
+					}
+					ESP.restart();
+				}
+				esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
+				delay(100);
+				esp_deep_sleep_start();									
+				ESP.restart();					
 			}
 		}
 
