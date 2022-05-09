@@ -50,8 +50,8 @@ public:
 struct {
 	int led = 5;
 	int powerControlPin = 18;
-	int fanPower = 25;
-	int fanPwm = 27;
+	int fanPower = 27;
+	//int fanPwm = 27;
 	int bv1 = 35;
 	int bv2 = 33;
 } pins;
@@ -192,8 +192,10 @@ void WiFiAutoConnect() {
 void setup() {
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
-	pinMode(pins.powerControlPin, INPUT);
-	pinMode(pins.fanPower, INPUT);
+	pinMode(pins.powerControlPin, OUTPUT);
+	pinMode(pins.fanPower, OUTPUT);
+	digitalWrite(pins.powerControlPin, 0);
+	digitalWrite(pins.fanPower, 0);
 	gpio_deep_sleep_hold_dis();
 
 	Serial.begin(921600, SERIAL_8N1);
