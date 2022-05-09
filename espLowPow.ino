@@ -446,6 +446,11 @@ void loop() {
 
 			if (status == 1) {
 				dbg("SLEEPING");
+				while(1) { 
+					esp_task_wdt_reset();
+					delay(1000);
+					dbg("BV1: %6.1f", avgAnalogRead(pins.bv1));	
+				}
 				//adc_power_off();
 				WiFi.disconnect(true);  // Disconnect from the network
 				WiFi.mode(WIFI_OFF);    // Switch WiFi off
@@ -457,6 +462,7 @@ void loop() {
 					}
 					ESP.restart();
 				}
+
 				esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
 				delay(100);
 				esp_deep_sleep_start();									
