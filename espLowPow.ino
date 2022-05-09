@@ -391,7 +391,18 @@ void loop() {
 			firstLoop = 0;
 		}
 		if (WiFi.status() == WL_CONNECTED) {
-
+			if (bv1 < 2430) {
+				pinMode(pins.powerControlPin, OUTPUT);
+				digitalWrite(pins.powerControlPin, 1);
+				gpio_hold_en((gpio_num_t)pins.powerControlPin);
+				gpio_deep_sleep_hold_en();
+			}
+			if (bv2 > 1380) {
+				pinMode(pins.fanPower, OUTPUT);
+				digitalWrite(pins.fanPower, 1);
+				gpio_hold_en((gpio_num_t)pins.fanPower);
+				gpio_deep_sleep_hold_en();
+			}
 			WiFiClientSecure wc;
 			wc.setInsecure();
 			//wc.setFingerprint(fingerprint);
@@ -434,19 +445,6 @@ void loop() {
 			}	  
 
 			if (status == 1) {
-				if (bv1 < 2430) {
-					pinMode(pins.powerControlPin, OUTPUT);
-					digitalWrite(pins.powerControlPin, 1);
-					gpio_hold_en((gpio_num_t)pins.powerControlPin);
-					gpio_deep_sleep_hold_en();
-				}
-				if (bv2 > 1380) {
-					pinMode(pins.fanPower, OUTPUT);
-					digitalWrite(pins.fanPower, 1);
-					gpio_hold_en((gpio_num_t)pins.fanPower);
-					gpio_deep_sleep_hold_en();
-				}
-	
 				dbg("SLEEPING");
 				//adc_power_off();
 				WiFi.disconnect(true);  // Disconnect from the network
