@@ -448,20 +448,13 @@ void loop() {
 				dbg("SLEEPING");
 				while(1) { 
 					esp_task_wdt_reset();
-					delay(1000);
-					dbg("BV1: %6.1f", avgAnalogRead(pins.bv1));	
+					ArduinoOTA.handle();
+					delay(10);
+					dbg("BV1: %6.1f BV2: %6.1f", avgAnalogRead(pins.bv1), avgAnalogRead(pins.bv2));	
 				}
 				//adc_power_off();
 				WiFi.disconnect(true);  // Disconnect from the network
 				WiFi.mode(WIFI_OFF);    // Switch WiFi off
-				if (0) {
-					// investigate why light_sleep isn't working 
-					for(int i = 0; i < 23 * 60; i++) {
-						esp_task_wdt_reset();
-						delay(1000);
-					}
-					ESP.restart();
-				}
 
 				esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
 				delay(100);
