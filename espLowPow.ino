@@ -60,7 +60,7 @@ struct {
 	int bv2 = 33;
 } pins;
 
-//#define MQTT
+#define MQTT
 #ifdef MQTT 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
@@ -391,7 +391,7 @@ void loop() {
 			firstLoop = 0;
 		}
 		if (WiFi.status() == WL_CONNECTED) {
-			if (bv1 > 1000 && bv1 < 2480) {
+			if (bv1 > 1000 && bv1 < 2400) {
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 				gpio_hold_en((gpio_num_t)pins.powerControlPin);
