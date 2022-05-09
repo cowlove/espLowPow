@@ -404,6 +404,7 @@ void loop() {
 			String s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
 				Sfmt("\"Power12V\":%d,", digitalRead(pins.powerControlPin)) + 
+				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
 				Sfmt("\"Tiedown.BatteryVoltage1\":%.1f,", bv1) + 
 				Sfmt("\"Tiedown.BatteryVoltage2\":%.1f}\n", bv2);
 
