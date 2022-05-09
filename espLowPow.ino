@@ -398,7 +398,7 @@ void loop() {
 				gpio_hold_en((gpio_num_t)pins.powerControlPin);
 				gpio_deep_sleep_hold_en();
 			}
-			if (bv2 > 1200) {
+			if (bv2 > 1360) {
 				pinMode(pins.fanPower, OUTPUT);
 				digitalWrite(pins.fanPower, 1);
 				gpio_hold_en((gpio_num_t)pins.fanPower);
