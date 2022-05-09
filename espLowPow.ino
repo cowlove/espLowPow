@@ -391,7 +391,7 @@ void loop() {
 			firstLoop = 0;
 		}
 		if (WiFi.status() == WL_CONNECTED) {
-			if (bv1 < 2400) {
+			if (bv1 > 1000 && bv1 < 2400) {
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 				gpio_hold_en((gpio_num_t)pins.powerControlPin);
@@ -414,10 +414,10 @@ void loop() {
 			mac.replace(":", "");
 			String s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-				Sfmt("\"Power12V\":%d,", digitalRead(pins.powerControlPin)) + 
+				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
 				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-				Sfmt("\"Tiedown.BatteryVoltage1\":%.1f,", bv1) + 
-				Sfmt("\"Tiedown.BatteryVoltage2\":%.1f}\n", bv2);
+				Sfmt("\"Voltage1\":%.1f,", bv1) + 
+				Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
 			client.addHeader("Content-Type", "application/json");
 			r = client.POST(s.c_str());
