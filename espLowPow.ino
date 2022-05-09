@@ -56,6 +56,8 @@ struct {
 	int powerControlPin = 18;
 	int fanPower = 25;
 	int fanPwm = 27;
+	int bv1 = 35;
+	int bv2 = 33;
 } pins;
 
 //#define MQTT
@@ -321,7 +323,14 @@ void loop() {
 	//		return;
 	//}
 
-	if (0 && blink.tick()) { 
+	for(int p = 0; p < 44; p++) { 
+		float f = avgAnalogRead(p);
+		Serial.printf("%02d: %6.1f ", p, f);
+	}
+	Serial.println("");
+
+	if (1 && blink.tick()) {
+		dbg("bv1: %6.1f, bv2: %6.1f", avgAnalogRead(pins.bv1), avgAnalogRead(pins.bv2)); 
 		digitalWrite(pins.led, !digitalRead(pins.led));
 	}	
 	
@@ -380,10 +389,10 @@ void loop() {
 
 		int status = 0;
 		if (firstLoop) { 
-			bv1 = avgAnalogRead(35);
-			bv2 = avgAnalogRead(33);
+			bv1 = avgAnalogRead(pins.bv1);
+			bv2 = avgAnalogRead(pins.bv2);
 			firstLoop = 0;
-			if (bv1 < 2460) {
+			if (bv1 < 2440) {
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 			}
