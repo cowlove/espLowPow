@@ -391,13 +391,13 @@ void loop() {
 			firstLoop = 0;
 		}
 		if (WiFi.status() == WL_CONNECTED) {
-			if (bv1 > 1000 && bv1 < 2400) {
+			if (bv1 > 1000 && bv1 < 2480) {
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 				gpio_hold_en((gpio_num_t)pins.powerControlPin);
 				gpio_deep_sleep_hold_en();
 			}
-			if (bv2 > 120) {
+			if (bv2 > 1200) {
 				pinMode(pins.fanPower, OUTPUT);
 				digitalWrite(pins.fanPower, 1);
 				gpio_hold_en((gpio_num_t)pins.fanPower);
