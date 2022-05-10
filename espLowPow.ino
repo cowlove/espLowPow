@@ -407,27 +407,53 @@ void loop() {
 			WiFiClientSecure wc;
 			wc.setInsecure();
 			//wc.setFingerprint(fingerprint);
-			HTTPClient client;
-			int r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
-			dbg("http.begin() returned %d\n", r);
-		
-			String mac = WiFi.macAddress();
-			mac.replace(":", "");
-			String s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
-				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-				Sfmt("\"Voltage1\":%.1f,", bv1) + 
-				Sfmt("\"Voltage2\":%.1f}\n", bv2);
+			
+			int r = 0;
+			String s;
+			if (1) { 
+				HTTPClient client;
+				r = client.begin("http://vheavy.ddns.net/log");
+				dbg("http.begin() returned %d\n", r);
+			
+				String mac = WiFi.macAddress();
+				mac.replace(":", "");
+				s = Sfmt("{\"ddns\":1,\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+					Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+					Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
+					Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+					Sfmt("\"Voltage1\":%.1f,", bv1) + 
+					Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
-			client.addHeader("Content-Type", "application/json");
-			r = client.POST(s.c_str());
-			//r = client.GET();
-			s =  client.getString();
-			client.end();
-		
-			dbg("http.POST() returned %d and %s\n", r, s.c_str());
-		
+				client.addHeader("Content-Type", "application/json");
+				r = client.POST(s.c_str());
+				s =  client.getString();
+				client.end();
+			
+				dbg("http.POST() returned %d and %s\n", r, s.c_str());
+			}
+			if (r != 200) { 
+				HTTPClient client;
+				r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
+				dbg("http.begin() returned %d\n", r);
+			
+				String mac = WiFi.macAddress();
+				mac.replace(":", "");
+				s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+					Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+					Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
+					Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+					Sfmt("\"Voltage1\":%.1f,", bv1) + 
+					Sfmt("\"Voltage2\":%.1f}\n", bv2);
+
+				client.addHeader("Content-Type", "application/json");
+				r = client.POST(s.c_str());
+				s =  client.getString();
+				client.end();
+			
+				dbg("http.POST() returned %d and %s\n", r, s.c_str());
+				
+			}
+			
 			StaticJsonDocument<1024> doc;
 			DeserializationError error = deserializeJson(doc, s);
 			const char *ota_ver = doc["ota_ver"];
