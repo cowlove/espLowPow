@@ -14,7 +14,7 @@ set y2tic;
 stats "1.dat" u ${X}:5 
 p [STATS_max_x-2:*] "1.dat" u ${X}:5 ${STYLE} t "Li Ion Battery", \
     "1.dat" u ${X}:6 ${STYLE} ax x1y2 t "12V Battery", \
-    2460 w l ax x1y1 t "" lc "black", 1380 w l ax x1y2 t "" lc "black";
+    2300 w l ax x1y1 t "" lc "black", 1310 w l ax x1y2 t "" lc "black";
 
 EOF
 
