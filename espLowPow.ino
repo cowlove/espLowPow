@@ -1,4 +1,4 @@
-//#include "jimlib.h"
+#include "jimlib.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
@@ -11,6 +11,8 @@
 #include "PubSubClient.h"
 #include "ArduinoOTA.h"
 
+
+#if 0 
 String Sfmt(const char *format, ...) { 
     va_list args;
     va_start(args, format);
@@ -46,12 +48,12 @@ public:
 	}
 };
 
-
+#endif
 struct {
 	int led = 5;
 	int powerControlPin = 18;
 	int fanPower = 27;
-	//int fanPwm = 27;
+	int solarPwm = 25;
 	int bv1 = 35;
 	int bv2 = 33;
 } pins;
@@ -210,9 +212,35 @@ void setup() {
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.led, 0);
 
-	//pinMode(pins.fanPwm, OUTPUT);
-	//ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
-	//ledcAttachPin(pins.fanPwm, 0);
+	pinMode(pins.solarPwm, OUTPUT);
+	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
+	ledcAttachPin(pins.solarPwm, 0);
+
+	while(0) { 
+		LineBuffer lb;
+		while (Serial.available()) { 
+			lb.add(Serial.read(), [] (const char *l){
+				int start, end, del;
+				if (sscanf(l, "%d %d %d", &start, &end, &del) == 3) {
+					Serial.printf("Got %d %d %d\n", start,end, del); 
+					for (int n = start; n != end; n += (end > start ? 1 : -1)) { 
+						ledcWrite(0, n * 4915 / 1500);
+						delay(del);
+
+					}
+					for (int n = end; n != start; n += (end > start ? -1 : 	1)) { 
+						ledcWrite(0, n * 4915 / 1500);
+						delay(del);
+
+					}
+				}
+
+			}); 
+		}
+		esp_task_wdt_reset();
+		delay(1);
+	}
+
 
 	WiFiAutoConnect();
 	ArduinoOTA.begin();
@@ -308,6 +336,8 @@ void webUpgrade(const char *u) {
 }
 
 
+
+
 int firstLoop = 1;
 float bv1, bv2;
 void loop() {
@@ -319,19 +349,8 @@ void loop() {
 	//		return;
 	//}
 
-#if 0
-	for(int p = 0; p < 44; p++) { 
-		float f = avgAnalogRead(p);
-		Serial.printf("%02d: %6.1f ", p, f);
-	}
-	Serial.println("");
 
-	if (1 && blink.tick()) {
-		dbg("bv1: %6.1f, bv2: %6.1f", avgAnalogRead(pins.bv1), avgAnalogRead(pins.bv2)); 
-		digitalWrite(pins.led, !digitalRead(pins.led));
-	}
-#endif	
-	
+
 	if (sec.tick()) {
 		if (0) { 
 			ledcWrite(0, 00 * 4915 / 1500);
@@ -371,8 +390,7 @@ void loop() {
 				dbg("fan off");
 	
 			}
-			//ledcWrite(0, 1000 * 4915 / 1500);
-
+		
 			if (0) { 
 				delay(1000);
 				gpio_hold_en((gpio_num_t)pins.fanPower);
@@ -458,6 +476,8 @@ void loop() {
 			DeserializationError error = deserializeJson(doc, s);
 			const char *ota_ver = doc["ota_ver"];
 			status = doc["status"];
+			const int pwm = doc["pwm"];
+			const int pwmEnd = doc["pwmEnd"];
 
 			if (ota_ver != NULL) { 
 				if (strcmp(ota_ver, GIT_VERSION) == 0
@@ -472,6 +492,21 @@ void loop() {
 			}	  
 
 			if (status == 1) {
+				if (pwm > 500) { 
+					pinMode(pins.powerControlPin, OUTPUT);
+					digitalWrite(pins.powerControlPin, 1);
+					delay(100);
+					ledcWrite(0, pwm * 4715 / 1500);
+					if (pwmEnd > 500) { 
+						for (int n = pwm; n != pwmEnd; n += (pwmEnd > pwm ? 1 : -1)) { 
+							ledcWrite(0, n * 4715 / 1500);
+							delay(10);
+						}
+					}
+					delay(1000);
+					ledcDetachPin(pins.solarPwm);
+					pinMode(pins.solarPwm, INPUT);
+				}
 				dbg("SLEEPING");
 				while(0) { 
 					esp_task_wdt_reset();

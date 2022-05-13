@@ -39,7 +39,7 @@ app.get('/fils', (req, res) => {
 app.get('/ota', (req, res) => {
   var SIZE = parseInt(req.query.len); // size of file rad 
   var offset = parseInt(req.query.offset); // offset of file read 
-	console.log("OTA offset %d length %d" % (offset, SIZE))
+	console.log("OTA offset ${offset} length ${SIZE}")
   fs.open("./firmware.bin", 'r', function(err, fd) {
     fs.fstat(fd, function(err, stats) {
       var buffer = new Buffer.alloc(SIZE);
