@@ -152,6 +152,7 @@ void loop() {
 		status = doc["status"];
 		const int pwm = doc["pwm"];
 		const int pwmEnd = doc["pwmEnd"];
+		int sleepMin = doc["sleep"];
 
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0
@@ -186,12 +187,13 @@ void loop() {
 				digitalWrite(pins.powerControlPin, 0);
 				pinMode(pins.powerControlPin, INPUT);
 			}
-			dbg("SLEEPING");
+			sleepMin = max(10, sleepMin);
+			dbg("SLEEPING %d MINUTES", sleepMin);
 			//adc_power_off();
 			WiFi.disconnect(true);  // Disconnect from the network
 			WiFi.mode(WIFI_OFF);    // Switch WiFi off
 
-			esp_sleep_enable_timer_wakeup(23LL * 60 * 1000000LL);
+			esp_sleep_enable_timer_wakeup(60LL * 1000000LL * sleepMin);
 			delay(100);
 			esp_deep_sleep_start();									
 			ESP.restart();					
