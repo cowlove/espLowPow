@@ -5,15 +5,6 @@
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
 
-//#include "PubSubClient.h"
-//#include "ArduinoOTA.h"
-
-int getLedPin() { 
-	const String mac = getMacAddress(); 
-	if (mac == "9C9C1FC9BE94") return 2;
-	return 2;	
-}
-
 struct {
 	int led = getLedPin(); // D1 mini
  	int powerControlPin = 18;
@@ -23,17 +14,15 @@ struct {
 	int bv2 = 33;
 } pins;
 
-MQTTClient mqtt("192.168.4.1", "lowpow", [](char* topic, byte* p, unsigned int l) {
-		String s = buf2str(p, l);
-	});
+MQTTClient mqtt("192.168.4.1", "lowpow");
+JimWiFi jw;
 
-void test(); 	
 void setup() {
 	esp_task_wdt_init(60, true);
 	esp_task_wdt_add(NULL);
 
 	Serial.begin(921600, SERIAL_8N1);
-	Serial.println("Restart");	
+	getLedPin();
 
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
@@ -50,9 +39,13 @@ void setup() {
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
 
-	test();
-	WiFiAutoConnect();
-	ArduinoOTA.begin();
+	jw.onConnect([](){
+		mqtt.active = (WiFi.SSID() == "ChloeNet");
+		dbg("Connected to wifi, mqtt.active is %d", (int)mqtt.active);					
+	});
+	mqtt.setCallback([](String t, String m) {
+		dbg("MQTT got string '%s'", m.c_str());
+	});
 }
 
 EggTimer sec(2000), minute(60000);
@@ -60,17 +53,12 @@ EggTimer blink(100);
 int loopCount = 0;
 int firstLoop = 1;
 float bv1, bv2;
-
 int bv2Thresh = 1310;
 
 void loop() {
 	esp_task_wdt_reset();
-	//jw.run();
+	jw.run();
 	mqtt.run();
-	ArduinoOTA.handle();
-    //if (jw.updateInProgress) {
-	//		return;
-	//}
 
 	if (!sec.tick()) {
 		delay(100);
@@ -209,102 +197,3 @@ void loop() {
 		esp_deep_sleep_start();
 	}
 }
-
-void test() { 
-	if (0) { 
-		pinMode(pins.fanPower, OUTPUT);
-		digitalWrite(pins.fanPower, 1);
-		gpio_hold_en((gpio_num_t)pins.fanPower);
-		//gpio_deep_sleep_hold_en();
-
-		pinMode(pins.led, OUTPUT);
-		digitalWrite(pins.led, 1);
-		gpio_hold_en((gpio_num_t)pins.led);
-
-		esp_sleep_enable_timer_wakeup(23LL * 60 * 1000000LL);
-
-		dbg("SLEEPING");
-
-		delay(100);
-		esp_deep_sleep_start();									
-	}
-
-	while(0) { 
-		LineBuffer lb;
-		while (Serial.available()) { 
-			lb.add(Serial.read(), [] (const char *l){
-				int start, end, del;
-				if (sscanf(l, "%d %d %d", &start, &end, &del) == 3) {
-					Serial.printf("Got %d %d %d\n", start,end, del); 
-					for (int n = start; n != end; n += (end > start ? 1 : -1)) { 
-						ledcWrite(0, n * 4915 / 1500);
-						delay(del);
-
-					}
-					for (int n = end; n != start; n += (end > start ? -1 : 	1)) { 
-						ledcWrite(0, n * 4915 / 1500);
-						delay(del);
-
-					}
-				}
-
-			}); 
-		}
-		esp_task_wdt_reset();
-		delay(1);
-	}
-
-	if (0) { 
-		ledcWrite(0, 00 * 4915 / 1500);
-		pinMode(pins.fanPower, OUTPUT);
-		digitalWrite(pins.fanPower, !digitalRead(pins.fanPower));
-		dbg("OUTPUT %d\n", digitalRead(pins.fanPower));
-	
-		//dbg("%d %s    " __BASE_FILE__ "   " __DATE__ "   " __TIME__, (int)(millis() / 1000), WiFi.localIP().toString().c_str());
-
-		//delay(5000);
-		dbg("pwm on");
-		//ledcWrite(0, 800 * 4915 / 1500);
-
-		
-		//delay(5000);
-		if (digitalRead(pins.fanPower) == 1) {
-			if (millis() < 20000) {  
-				return;
-			}
-			gpio_hold_en((gpio_num_t)pins.fanPower);
-			gpio_deep_sleep_hold_en();
-			dbg("sleep");
-			delay(100);
-		
-			esp_sleep_enable_timer_wakeup(23LL * 60 * 1000000LL);
-			esp_deep_sleep_start();
-		
-		
-			dbg("fan on");
-			ledcWrite(0, 2000 * 4915 / 1500);
-			delay(150);
-			ledcWrite(0, 1050 * 4915 / 1500);
-			for(int s = 0; s < 60; s++) { 
-				delay(1000);
-				esp_task_wdt_reset();
-			}
-			dbg("fan off");
-
-		}
-	
-		if (0) { 
-			delay(1000);
-			gpio_hold_en((gpio_num_t)pins.fanPower);
-			gpio_deep_sleep_hold_en();
-			delay(100);
-			esp_sleep_enable_timer_wakeup(3LL * 1000000LL);
-			//esp_light_sleep_start();
-			gpio_hold_dis((gpio_num_t)pins.fanPower);
-		}
-		return;
-	}		
-
-
-}
-
