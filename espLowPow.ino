@@ -60,7 +60,7 @@ void setup() {
 	ledcAttachPin(pins.solarPwm, 0);
 }
 
-EggTimer sec(20000), minute(60000);
+EggTimer sec(2000), minute(60000);
 EggTimer blink(100);
 int loopCount = 0;
 int firstLoop = 1;
