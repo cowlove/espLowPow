@@ -1,220 +1,231 @@
 #include "jimlib.h"
-#include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <WiFiClientSecure.h>
 
 #include <esp_task_wdt.h>
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
-#include <Update.h>			
 
-#include "PubSubClient.h"
-#include "ArduinoOTA.h"
+//#include "PubSubClient.h"
+//#include "ArduinoOTA.h"
 
-
-#if 0 
-String Sfmt(const char *format, ...) { 
-    va_list args;
-    va_start(args, format);
-	char buf[256];
-	vsnprintf(buf, sizeof(buf), format, args);
-    va_end(args);
-	return String(buf);
+int getLedPin() { 
+	const String mac = getMacAddress(); 
+	if (mac == "9C9C1FC9BE94") return 2;
+	return 2;	
 }
 
-
-class EggTimer {
-	uint64_t last;
-	uint64_t interval; 
-	bool first = true;
-public:
-	EggTimer(float ms) : interval(ms * 1000), last(0) { reset(); }
-	bool tick() { 
-		uint64_t now = micros();
-		if (now - last >= interval) { 
-			last += interval;
-			// reset last to now if more than one full interval behind 
-			if (now - last >= interval) 
-				last = now;
-			return true;
-		} 
-		return false;
-	}
-	void reset() { 
-		last = micros();
-	}
-	void alarmNow() { 
-		last = 0;
-	}
-};
-
-#endif
 struct {
-	int led = 5;
-	int powerControlPin = 18;
+	int led = getLedPin(); // D1 mini
+ 	int powerControlPin = 18;
 	int fanPower = 27;
 	int solarPwm = 25;
 	int bv1 = 35;
 	int bv2 = 33;
 } pins;
 
-//#define MQTT
-#ifdef MQTT 
-void mqttCallback(char* topic, byte* payload, unsigned int length);
+MQTTClient mqtt("192.168.4.1", "lowpow", [](char* topic, byte* p, unsigned int l) {
+		String s = buf2str(p, l);
+	});
 
-class MQTTClient { 
-	WiFiClient espClient;
-	String topicPrefix, server;
-public:
-	bool active = true;
-	PubSubClient client;
-	MQTTClient(const char *s, const char *t) : server(s), topicPrefix(t), client(espClient) {}
-	void publish(const char *suffix, const char *m) { 
-		String t = topicPrefix + "/" + suffix;
-		client.publish(t.c_str(), m);
-	}
-	void publish(const char *suffix, const String &m) {
-		 publish(suffix, m.c_str()); 
-	}
-	void reconnect() {
-	// Loop until we're reconnected
-		if (active == false || WiFi.status() != WL_CONNECTED || client.connected()) 
-			return;
-		
-		Serial.print("Attempting MQTT connection...");
-		client.setServer(server.c_str(), 1883);
-		client.setCallback(mqttCallback);
-		if (client.connect(topicPrefix.c_str())) {
-			Serial.println("connected");
-			// ... and resubscribe
-			client.subscribe((topicPrefix + "/in").c_str());
-			client.setCallback(mqttCallback);
-		} else {
-			Serial.print("failed, rc=");
-			Serial.print(client.state());
-		}
-	}
-	void dprintf(const char *format, ...) { 
-		va_list args;
-		va_start(args, format);
-        char buf[256];
-        vsnprintf(buf, sizeof(buf), format, args);
-	    va_end(args);
-		client.publish((topicPrefix + "/debug").c_str(), buf);
-	}
-	void run() { 
-		if (active) { 
-			client.loop();
-			reconnect();
-		}
-	}
- };
-
-
-MQTTClient mqtt("192.168.4.1", "lowpow");
-
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  std::string p;
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-	p += (char)payload[i];
-  }
-  mqtt.publish("heater/out", "got mqtt message");
-  Serial.println();
-}
-
-#else // MQTT
-
-struct {
-	void dprintf(const char *, ...) {}
-	void run() {};
-	void publish(const char *suffix, const char *m) {}
-	void publish(const char *suffix, const String &m) {}
-} mqtt;
-
-#endif // #else MQTT
-void dbg(const char *format, ...) { 
-	va_list args;
-	va_start(args, format);
-	char buf[256];
-	vsnprintf(buf, sizeof(buf), format, args);
-	va_end(args);
-	mqtt.publish("debug", buf);
-	//jw.udpDebug(buf);
-	Serial.println(buf);
-}
-	
-#define uS_TO_S_FACTOR 1000000LL  /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 30
-
-
-void WiFiAutoConnect() { 
-	const struct {
-		const char *name;
-		const char *pass;
-	} aps[] = {	{"MOF-Guest", ""}, 
-				{"ChloeNet", "niftyprairie7"},
-				{"Team America", "51a52b5354"},  
-				{"TUK-FIRE", "FD priv n3t 20 q4"}};
-	WiFi.disconnect(true);
-	WiFi.mode(WIFI_STA);
-	WiFi.setSleep(false);
-
-	int bestMatch = -1;
-
-	int n = WiFi.scanNetworks();
-	Serial.println("scan done");
-	
-	if (n == 0) {
-		Serial.println("no networks found");
-	} else {
-		Serial.printf("%d networks found\n", n);
-		for (int i = 0; i < n; ++i) {
-		// Print SSID and RSSI for each network found
-			Serial.printf("%3d: %s (%d)\n", i + 1, WiFi.SSID(i).c_str(), WiFi.RSSI());
-			for (int j = 0; j < sizeof(aps)/sizeof(aps[0]); j++) { 				
-				if (strcmp(WiFi.SSID(i).c_str(), aps[j].name) == 0) { 
-					if (bestMatch == -1 || j < bestMatch) {
-						bestMatch = j;
-					}
-				}
-			}	
-		}
-	}
-	if (bestMatch == -1) {
-		bestMatch = 0;
-	}
-	Serial.printf("Using WiFi AP '%s'...\n", aps[bestMatch].name);
-	WiFi.begin(aps[bestMatch].name, aps[bestMatch].pass);
-}
-
+void test(); 	
 void setup() {
-	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
-	gpio_hold_dis((gpio_num_t)pins.fanPower);
-	pinMode(pins.powerControlPin, OUTPUT);
-	pinMode(pins.fanPower, OUTPUT);
-	digitalWrite(pins.powerControlPin, 0);
-	digitalWrite(pins.fanPower, 0);
-	gpio_deep_sleep_hold_dis();
-
-	Serial.begin(921600, SERIAL_8N1);
-	Serial.println("Restart");	
-	
 	esp_task_wdt_init(60, true);
 	esp_task_wdt_add(NULL);
 
-	//pinMode(35, INPUT);
-	//analogSetSamples(255);
+	Serial.begin(921600, SERIAL_8N1);
+	Serial.println("Restart");	
 
-	pinMode(pins.led, OUTPUT);
-	digitalWrite(pins.led, 0);
+	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
+	gpio_hold_dis((gpio_num_t)pins.fanPower);
+	gpio_deep_sleep_hold_dis();
 
+	pinMode(pins.powerControlPin, OUTPUT);
+	pinMode(pins.fanPower, OUTPUT);
 	pinMode(pins.solarPwm, OUTPUT);
+	pinMode(pins.led, OUTPUT);
+	digitalWrite(pins.powerControlPin, 0);
+	digitalWrite(pins.fanPower, 0);
+	digitalWrite(pins.led, 1);
+
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
+
+	test();
+	WiFiAutoConnect();
+	ArduinoOTA.begin();
+}
+
+EggTimer sec(2000), minute(60000);
+EggTimer blink(100);
+int loopCount = 0;
+int firstLoop = 1;
+float bv1, bv2;
+
+int bv2Thresh = 1310;
+
+void loop() {
+	esp_task_wdt_reset();
+	//jw.run();
+	mqtt.run();
+	ArduinoOTA.handle();
+    //if (jw.updateInProgress) {
+	//		return;
+	//}
+
+	if (!sec.tick()) {
+		delay(100);
+		return;
+	}
+
+	int status = 0;
+	if (firstLoop) { 
+		bv1 = avgAnalogRead(pins.bv1);
+		bv2 = avgAnalogRead(pins.bv2);
+		firstLoop = 0;
+	}
+	if (WiFi.status() == WL_CONNECTED) {
+		if (bv1 > 1000 && bv1 < 2300) {
+			pinMode(pins.powerControlPin, OUTPUT);
+			digitalWrite(pins.powerControlPin, 1);
+			gpio_hold_en((gpio_num_t)pins.powerControlPin);
+			gpio_deep_sleep_hold_en();
+		}
+		if (bv2 > bv2Thresh) {
+			pinMode(pins.fanPower, OUTPUT);
+			digitalWrite(pins.fanPower, 1);
+			gpio_hold_en((gpio_num_t)pins.fanPower);
+			gpio_deep_sleep_hold_en();
+		}
+		WiFiClientSecure wc;
+		wc.setInsecure();
+		//wc.setFingerprint(fingerprint);
+		
+		int r = 0;
+		String s;
+		if (1) { 
+			HTTPClient client;
+			r = client.begin("http://vheavy.ddns.net/log");
+			dbg("http.begin() returned %d\n", r);
+		
+			String mac = WiFi.macAddress();
+			mac.replace(":", "");
+			s = Sfmt("{\"ddns\":1,\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
+				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+				Sfmt("\"Voltage1\":%.1f,", bv1) + 
+				Sfmt("\"Voltage2\":%.1f}\n", bv2);
+
+			client.addHeader("Content-Type", "application/json");
+			r = client.POST(s.c_str());
+			s =  client.getString();
+			client.end();
+		
+			dbg("http.POST() returned %d and %s\n", r, s.c_str());
+		}
+		if (r != 200) { 
+			HTTPClient client;
+			r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
+			dbg("http.begin() returned %d\n", r);
+		
+			String mac = WiFi.macAddress();
+			mac.replace(":", "");
+			s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
+				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+				Sfmt("\"Voltage1\":%.1f,", bv1) + 
+				Sfmt("\"Voltage2\":%.1f}\n", bv2);
+
+			client.addHeader("Content-Type", "application/json");
+			r = client.POST(s.c_str());
+			s =  client.getString();
+			client.end();
+		
+			dbg("http.POST() returned %d and %s\n", r, s.c_str());
+			
+		}
+		
+		StaticJsonDocument<1024> doc;
+		DeserializationError error = deserializeJson(doc, s);
+		const char *ota_ver = doc["ota_ver"];
+		status = doc["status"];
+		const int pwm = doc["pwm"];
+		const int pwmEnd = doc["pwmEnd"];
+
+		if (ota_ver != NULL) { 
+			if (strcmp(ota_ver, GIT_VERSION) == 0
+				// dont update an existing -dirty unless ota_ver is also -dirty  
+				|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+				) {
+				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
+			} else { 
+				dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
+				webUpgrade("https://thingproxy.freeboard.io/fetch/https://vheavy.com/ota");
+			}	
+		}	  
+
+		if (status == 1) {
+			if (pwm > 500) { 
+				pinMode(pins.powerControlPin, OUTPUT);
+				digitalWrite(pins.powerControlPin, 1);
+				delay(100);
+				ledcWrite(0, pwm * 4715 / 1500);
+				if (pwmEnd > 500) { 
+					for (int n = pwm; n != pwmEnd; n += (pwmEnd > pwm ? 1 : -1)) { 
+						ledcWrite(0, n * 4715 / 1500);
+						delay(10);
+					}
+				}
+				delay(1000);
+				ledcDetachPin(pins.solarPwm);
+				pinMode(pins.solarPwm, INPUT);
+			}
+			if (bv2 <= bv2Thresh) { 
+				gpio_hold_dis((gpio_num_t)pins.powerControlPin);
+				digitalWrite(pins.powerControlPin, 0);
+				pinMode(pins.powerControlPin, INPUT);
+			}
+			dbg("SLEEPING");
+			//adc_power_off();
+			WiFi.disconnect(true);  // Disconnect from the network
+			WiFi.mode(WIFI_OFF);    // Switch WiFi off
+
+			esp_sleep_enable_timer_wakeup(23LL * 60 * 1000000LL);
+			delay(100);
+			esp_deep_sleep_start();									
+			ESP.restart();					
+		}
+	}
+
+	if(loopCount++ > 30) { 
+		dbg("TOO MANY RETRIES, SLEEPING");
+		digitalWrite(pins.led, 0);
+		pinMode(pins.powerControlPin, INPUT);
+		delay(100);
+		esp_sleep_enable_timer_wakeup(300LL * 1000000LL);
+		esp_deep_sleep_start();
+	}
+}
+
+void test() { 
+	if (0) { 
+		pinMode(pins.fanPower, OUTPUT);
+		digitalWrite(pins.fanPower, 1);
+		gpio_hold_en((gpio_num_t)pins.fanPower);
+		//gpio_deep_sleep_hold_en();
+
+		pinMode(pins.led, OUTPUT);
+		digitalWrite(pins.led, 1);
+		gpio_hold_en((gpio_num_t)pins.led);
+
+		esp_sleep_enable_timer_wakeup(23LL * 60 * 1000000LL);
+
+		dbg("SLEEPING");
+
+		delay(100);
+		esp_deep_sleep_start();									
+	}
 
 	while(0) { 
 		LineBuffer lb;
@@ -241,303 +252,57 @@ void setup() {
 		delay(1);
 	}
 
+	if (0) { 
+		ledcWrite(0, 00 * 4915 / 1500);
+		pinMode(pins.fanPower, OUTPUT);
+		digitalWrite(pins.fanPower, !digitalRead(pins.fanPower));
+		dbg("OUTPUT %d\n", digitalRead(pins.fanPower));
+	
+		//dbg("%d %s    " __BASE_FILE__ "   " __DATE__ "   " __TIME__, (int)(millis() / 1000), WiFi.localIP().toString().c_str());
 
-	WiFiAutoConnect();
-	ArduinoOTA.begin();
-}
+		//delay(5000);
+		dbg("pwm on");
+		//ledcWrite(0, 800 * 4915 / 1500);
 
-EggTimer sec(2000), minute(60000);
-EggTimer blink(100);
-int loopCount = 0;
-
-float avgAnalogRead(int pin) { 
-	float bv = 0;
-	const int avg = 1024;
-	for (int i = 0; i < avg; i++) {
-		bv += analogRead(pin);
-	}
-	return bv / avg;
-}
-
-int hex2bin(const char *in, char *out, int l) { 
-        for (const char *p = in; p < in + l ; p += 2) { 
-                char b[3];
-                b[0] = p[0];
-                b[1] = p[1];
-                b[2] = 0;
-                int c;
-                sscanf(b, "%x", &c);
-                *(out++) = c;
-        }
-        return l / 2;
-}
-
-void webUpgrade(const char *u) {
-	WiFiClientSecure wc;
-	wc.setInsecure();
-	HTTPClient client; 
-
-	int offset = 0;
-	int len = 1024 * 16;
-	int errors = 0;
- 
-	Update.begin(UPDATE_SIZE_UNKNOWN);
-	Serial.println("Updating firmware...");
-
-	while(true) { 
-		esp_task_wdt_reset();
-		String url = String(u) + Sfmt("?len=%d&offset=%d", len, offset);
-		dbg("offset %d, len %d, url %s", offset, len, url.c_str());
-		client.begin(wc, url);
-		int resp = client.GET();
-		//dbg("HTTPClient.get() returned %d\n", resp);
-		if(resp != 200) {
-			dbg("Get failed\n");
-			Serial.print(client.getString());
-			delay(5000);
-			if (++errors > 10) { 
+		
+		//delay(5000);
+		if (digitalRead(pins.fanPower) == 1) {
+			if (millis() < 20000) {  
 				return;
 			}
-			continue;
-		}
-		int currentLength = 0;
-		int	totalLength = client.getSize();
-		int len = totalLength;
-		uint8_t bbuf[128], tbuf[256];
-	
-		//Serial.printf("FW Size: %u\n",totalLength);
-		if (totalLength == 0) { 
-			Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
-			Update.end(true);
-			ESP.restart();
-			return;				
-		}
-		
-		
-		WiFiClient * stream = client.getStreamPtr();
-		while(client.connected() && len > 0) {
-			size_t avail = stream->available();
-			if(avail) {
-				int c = stream->readBytes(tbuf, ((avail > sizeof(tbuf)) ? sizeof(tbuf) : avail));
-				if (c > 0) {
-					hex2bin((const char *)tbuf, (char *)bbuf, c);
-					//dbg("Update with %d", c / 2);
-					Update.write(bbuf, c / 2);
-					if(len > 0) {
-						len -= c;
-					}
-				}
-			}
-			delay(1);
-		}	
-		client.end();
-		offset += totalLength / 2;
-	}
-}
-
-
-
-
-int firstLoop = 1;
-float bv1, bv2;
-void loop() {
-	esp_task_wdt_reset();
-	//jw.run();
-	mqtt.run();
-	ArduinoOTA.handle();
-    //if (jw.updateInProgress) {
-	//		return;
-	//}
-
-
-
-	if (sec.tick()) {
-		if (0) { 
-			ledcWrite(0, 00 * 4915 / 1500);
-			pinMode(pins.fanPower, OUTPUT);
-			digitalWrite(pins.fanPower, !digitalRead(pins.fanPower));
-			dbg("OUTPUT %d\n", digitalRead(pins.fanPower));
-		
-            //dbg("%d %s    " __BASE_FILE__ "   " __DATE__ "   " __TIME__, (int)(millis() / 1000), WiFi.localIP().toString().c_str());
-
-			//delay(5000);
-			dbg("pwm on");
-			//ledcWrite(0, 800 * 4915 / 1500);
-
-			
-			//delay(5000);
-			if (digitalRead(pins.fanPower) == 1) {
-				if (millis() < 20000) {  
-					return;
-				}
-				gpio_hold_en((gpio_num_t)pins.fanPower);
-				gpio_deep_sleep_hold_en();
-				dbg("sleep");
-				delay(100);
-			
-				esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
-				esp_deep_sleep_start();
-			
-			
-				dbg("fan on");
-				ledcWrite(0, 2000 * 4915 / 1500);
-				delay(150);
-				ledcWrite(0, 1050 * 4915 / 1500);
-				for(int s = 0; s < 60; s++) { 
-					delay(1000);
-					esp_task_wdt_reset();
-				}
-				dbg("fan off");
-	
-			}
-		
-			if (0) { 
-				delay(1000);
-				gpio_hold_en((gpio_num_t)pins.fanPower);
-				gpio_deep_sleep_hold_en();
-				delay(100);
-				esp_sleep_enable_timer_wakeup(3LL * uS_TO_S_FACTOR);
-				//esp_light_sleep_start();
-				gpio_hold_dis((gpio_num_t)pins.fanPower);
-			}
-			return;
-		}		
-
-		int status = 0;
-		if (firstLoop) { 
-			bv1 = avgAnalogRead(pins.bv1);
-			bv2 = avgAnalogRead(pins.bv2);
-			firstLoop = 0;
-		}
-		if (WiFi.status() == WL_CONNECTED) {
-			if (bv1 > 1000 && bv1 < 2300) {
-				pinMode(pins.powerControlPin, OUTPUT);
-				digitalWrite(pins.powerControlPin, 1);
-				gpio_hold_en((gpio_num_t)pins.powerControlPin);
-				gpio_deep_sleep_hold_en();
-			}
-			if (bv2 > 1310) {
-				pinMode(pins.fanPower, OUTPUT);
-				digitalWrite(pins.fanPower, 1);
-				gpio_hold_en((gpio_num_t)pins.fanPower);
-				gpio_deep_sleep_hold_en();
-			}
-			WiFiClientSecure wc;
-			wc.setInsecure();
-			//wc.setFingerprint(fingerprint);
-			
-			int r = 0;
-			String s;
-			if (1) { 
-				HTTPClient client;
-				r = client.begin("http://vheavy.ddns.net/log");
-				dbg("http.begin() returned %d\n", r);
-			
-				String mac = WiFi.macAddress();
-				mac.replace(":", "");
-				s = Sfmt("{\"ddns\":1,\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-					Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-					Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
-					Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-					Sfmt("\"Voltage1\":%.1f,", bv1) + 
-					Sfmt("\"Voltage2\":%.1f}\n", bv2);
-
-				client.addHeader("Content-Type", "application/json");
-				r = client.POST(s.c_str());
-				s =  client.getString();
-				client.end();
-			
-				dbg("http.POST() returned %d and %s\n", r, s.c_str());
-			}
-			if (r != 200) { 
-				HTTPClient client;
-				r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
-				dbg("http.begin() returned %d\n", r);
-			
-				String mac = WiFi.macAddress();
-				mac.replace(":", "");
-				s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-					Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-					Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
-					Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-					Sfmt("\"Voltage1\":%.1f,", bv1) + 
-					Sfmt("\"Voltage2\":%.1f}\n", bv2);
-
-				client.addHeader("Content-Type", "application/json");
-				r = client.POST(s.c_str());
-				s =  client.getString();
-				client.end();
-			
-				dbg("http.POST() returned %d and %s\n", r, s.c_str());
-				
-			}
-			
-			StaticJsonDocument<1024> doc;
-			DeserializationError error = deserializeJson(doc, s);
-			const char *ota_ver = doc["ota_ver"];
-			status = doc["status"];
-			const int pwm = doc["pwm"];
-			const int pwmEnd = doc["pwmEnd"];
-
-			if (ota_ver != NULL) { 
-				if (strcmp(ota_ver, GIT_VERSION) == 0
-					// dont update an existing -dirty unless ota_ver is also -dirty  
-					|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
-					) {
-					dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
-				} else { 
-					dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
-					webUpgrade("https://thingproxy.freeboard.io/fetch/https://vheavy.com/ota");
-				}	
-			}	  
-
-			if (status == 1) {
-				if (pwm > 500) { 
-					pinMode(pins.powerControlPin, OUTPUT);
-					digitalWrite(pins.powerControlPin, 1);
-					delay(100);
-					ledcWrite(0, pwm * 4715 / 1500);
-					if (pwmEnd > 500) { 
-						for (int n = pwm; n != pwmEnd; n += (pwmEnd > pwm ? 1 : -1)) { 
-							ledcWrite(0, n * 4715 / 1500);
-							delay(10);
-						}
-					}
-					delay(1000);
-					ledcDetachPin(pins.solarPwm);
-					pinMode(pins.solarPwm, INPUT);
-				}
-				dbg("SLEEPING");
-				while(0) { 
-					esp_task_wdt_reset();
-					ArduinoOTA.handle();
-					delay(10);
-					dbg("BV1: %6.1f BV2: %6.1f", avgAnalogRead(pins.bv1), avgAnalogRead(pins.bv2));	
-				}
-				//adc_power_off();
-				WiFi.disconnect(true);  // Disconnect from the network
-				WiFi.mode(WIFI_OFF);    // Switch WiFi off
-
-				esp_sleep_enable_timer_wakeup(23LL * 60 * uS_TO_S_FACTOR);
-				delay(100);
-				esp_deep_sleep_start();									
-				ESP.restart();					
-			}
-		}
-
-		if(loopCount++ > 30) { 
-			if (WiFi.status() != WL_CONNECTED) {
-				dbg("NEVER CONNECTED, REBOOTING");
-				//ESP.restart();
-			}
-			dbg("TOO MANY RETRIES, SLEEPING");
-			digitalWrite(pins.led, 0);
-			pinMode(pins.powerControlPin, INPUT);
+			gpio_hold_en((gpio_num_t)pins.fanPower);
+			gpio_deep_sleep_hold_en();
+			dbg("sleep");
 			delay(100);
-			esp_sleep_enable_timer_wakeup(300LL * uS_TO_S_FACTOR);
+		
+			esp_sleep_enable_timer_wakeup(23LL * 60 * 1000000LL);
 			esp_deep_sleep_start();
+		
+		
+			dbg("fan on");
+			ledcWrite(0, 2000 * 4915 / 1500);
+			delay(150);
+			ledcWrite(0, 1050 * 4915 / 1500);
+			for(int s = 0; s < 60; s++) { 
+				delay(1000);
+				esp_task_wdt_reset();
+			}
+			dbg("fan off");
+
 		}
-	}
-	delay(50);
+	
+		if (0) { 
+			delay(1000);
+			gpio_hold_en((gpio_num_t)pins.fanPower);
+			gpio_deep_sleep_hold_en();
+			delay(100);
+			esp_sleep_enable_timer_wakeup(3LL * 1000000LL);
+			//esp_light_sleep_start();
+			gpio_hold_dis((gpio_num_t)pins.fanPower);
+		}
+		return;
+	}		
+
+
 }
 
