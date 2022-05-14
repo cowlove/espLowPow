@@ -167,7 +167,7 @@ void loop() {
 		}	  
 
 		if (status == 1) {
-			if (pwm > 500) { 
+			if (0 && pwm > 500) { 
 				pinMode(pins.powerControlPin, OUTPUT);
 				digitalWrite(pins.powerControlPin, 1);
 				delay(100);
