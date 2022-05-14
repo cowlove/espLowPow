@@ -14,16 +14,36 @@ struct {
 	int bv2 = 33;
 } pins;
 
-MQTTClient mqtt("192.168.4.1", "lowpow");
-JimWiFi jw;
+class JStuff {
+public:
+	JimWiFi jw;
+	MQTTClient mqtt = MQTTClient("192.168.4.1", basename(__BASE_FILE__).c_str());
+	void run() { 
+		esp_task_wdt_reset();
+		jw.run(); 
+		mqtt.run(); 
+	}
+	void begin() { 
+		esp_task_wdt_init(60, true);
+		esp_task_wdt_add(NULL);
+
+		Serial.begin(921600, SERIAL_8N1);
+		Serial.println(__BASE_FILE__ " " GIT_VERSION);
+		getLedPin();
+
+		jw.onConnect([this](){
+			jw.debug = mqtt.active = (WiFi.SSID() == "ChloeNet");
+		});
+		mqtt.setCallback([](String t, String m) {
+			dbg("MQTT got string '%s'", m.c_str());
+		});
+	}
+};
+
+JStuff j;
 
 void setup() {
-	esp_task_wdt_init(60, true);
-	esp_task_wdt_add(NULL);
-
-	Serial.begin(921600, SERIAL_8N1);
-	getLedPin();
-
+	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	gpio_deep_sleep_hold_dis();
@@ -38,17 +58,9 @@ void setup() {
 
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
-
-	jw.onConnect([](){
-		mqtt.active = (WiFi.SSID() == "ChloeNet");
-		dbg("Connected to wifi, mqtt.active is %d", (int)mqtt.active);					
-	});
-	mqtt.setCallback([](String t, String m) {
-		dbg("MQTT got string '%s'", m.c_str());
-	});
 }
 
-EggTimer sec(2000), minute(60000);
+EggTimer sec(20000), minute(60000);
 EggTimer blink(100);
 int loopCount = 0;
 int firstLoop = 1;
@@ -56,9 +68,7 @@ float bv1, bv2;
 int bv2Thresh = 1310;
 
 void loop() {
-	esp_task_wdt_reset();
-	jw.run();
-	mqtt.run();
+	j.run();
 
 	if (!sec.tick()) {
 		delay(100);
@@ -84,19 +94,16 @@ void loop() {
 			gpio_hold_en((gpio_num_t)pins.fanPower);
 			gpio_deep_sleep_hold_en();
 		}
-		WiFiClientSecure wc;
-		wc.setInsecure();
-		//wc.setFingerprint(fingerprint);
 		
 		int r = 0;
 		String s;
+		String mac = WiFi.macAddress();
+		mac.replace(":", "");
 		if (1) { 
 			HTTPClient client;
 			r = client.begin("http://vheavy.ddns.net/log");
 			dbg("http.begin() returned %d\n", r);
 		
-			String mac = WiFi.macAddress();
-			mac.replace(":", "");
 			s = Sfmt("{\"ddns\":1,\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
 				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
@@ -113,11 +120,11 @@ void loop() {
 		}
 		if (r != 200) { 
 			HTTPClient client;
+			WiFiClientSecure wc;
+			wc.setInsecure();
 			r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
 			dbg("http.begin() returned %d\n", r);
 		
-			String mac = WiFi.macAddress();
-			mac.replace(":", "");
 			s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
 				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
