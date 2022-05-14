@@ -39,7 +39,7 @@ app.get('/fils', (req, res) => {
 app.get('/ota', (req, res) => {
   var SIZE = parseInt(req.query.len); // size of file rad 
   var offset = parseInt(req.query.offset); // offset of file read 
-	console.log("OTA offset {$offset} length {$SIZE}")
+	console.log('OTA offset %d len %d', offset, SIZE)
   fs.open("./firmware.bin", 'r', function(err, fd) {
     fs.fstat(fd, function(err, stats) {
       var buffer = new Buffer.alloc(SIZE);
@@ -55,7 +55,7 @@ app.get('/ota', (req, res) => {
 app.post('/log', (req, res) => {
 	console.log(JSON.stringify(req.body, null, 0))
 	const ver = fs.readFileSync("firmware.ver").toString().replace(/\s/g, '')
-	res.json({ "ota_ver" : ver, "status" : 1 })
+	res.json({ "sleep":22, "ota_ver" : ver, "status" : 1, "pwm":1050, "pwmEnd":1250 })
 })
 
 httpServer.listen(80);
