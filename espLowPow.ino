@@ -175,7 +175,7 @@ void loop() {
 			ESP.restart();					
 		}
 	}
-
+	// changes to jimlib
 	if(loopCount++ > 30) { 
 		dbg("TOO MANY RETRIES, SLEEPING");
 		digitalWrite(pins.led, 0);
