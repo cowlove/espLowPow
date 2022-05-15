@@ -54,7 +54,7 @@ void setup() {
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.powerControlPin, 0);
 	digitalWrite(pins.fanPower, 0);
-	digitalWrite(pins.led, 1);
+	digitalWrite(pins.led, 0);
 
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
@@ -70,6 +70,9 @@ int bv2Thresh = 1310;
 void loop() {
 	j.run();
 
+	if (blink.tick()) { 
+		digitalWrite(pins.led, !digitalRead(pins.led));
+	}
 	if (!sec.tick()) {
 		delay(100);
 		return;
@@ -99,47 +102,25 @@ void loop() {
 		String s;
 		String mac = WiFi.macAddress();
 		mac.replace(":", "");
-		if (1) { 
-			HTTPClient client;
-			r = client.begin("http://vheavy.ddns.net/log");
-			dbg("http.begin() returned %d\n", r);
-		
-			s = Sfmt("{\"ddns\":1,\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
-				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-				Sfmt("\"Voltage1\":%.1f,", bv1) + 
-				Sfmt("\"Voltage2\":%.1f}\n", bv2);
+		HTTPClient client;
+		WiFiClientSecure wc;
+		wc.setInsecure();
+		r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
+		dbg("http.begin() returned %d\n", r);
+	
+		s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+			Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+			Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
+			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+			Sfmt("\"Voltage1\":%.1f,", bv1) + 
+			Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
-			client.addHeader("Content-Type", "application/json");
-			r = client.POST(s.c_str());
-			s =  client.getString();
-			client.end();
-		
-			dbg("http.POST() returned %d and %s\n", r, s.c_str());
-		}
-		if (r != 200) { 
-			HTTPClient client;
-			WiFiClientSecure wc;
-			wc.setInsecure();
-			r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
-			dbg("http.begin() returned %d\n", r);
-		
-			s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-				Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-				Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
-				Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-				Sfmt("\"Voltage1\":%.1f,", bv1) + 
-				Sfmt("\"Voltage2\":%.1f}\n", bv2);
-
-			client.addHeader("Content-Type", "application/json");
-			r = client.POST(s.c_str());
-			s =  client.getString();
-			client.end();
-		
-			dbg("http.POST() returned %d and %s\n", r, s.c_str());
-			
-		}
+		client.addHeader("Content-Type", "application/json");
+		r = client.POST(s.c_str());
+		s =  client.getString();
+		client.end();
+	
+		dbg("http.POST() returned %d and %s\n", r, s.c_str());
 		
 		StaticJsonDocument<1024> doc;
 		DeserializationError error = deserializeJson(doc, s);
@@ -200,6 +181,7 @@ void loop() {
 		digitalWrite(pins.led, 0);
 		pinMode(pins.powerControlPin, INPUT);
 		delay(100);
+		ESP.restart();					
 		esp_sleep_enable_timer_wakeup(300LL * 1000000LL);
 		esp_deep_sleep_start();
 	}
