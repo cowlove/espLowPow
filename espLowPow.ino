@@ -1,9 +1,12 @@
 #include "jimlib.h"
+
+#ifndef UBUNTU
 #include <ArduinoJson.h>
 
 #include <esp_task_wdt.h>
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
+#endif
 
 struct {
 	int led = getLedPin(); // D1 mini
@@ -14,31 +17,6 @@ struct {
 	int bv2 = 33;
 } pins;
 
-class JStuff {
-public:
-	JimWiFi jw;
-	MQTTClient mqtt = MQTTClient("192.168.4.1", basename(__BASE_FILE__).c_str());
-	void run() { 
-		esp_task_wdt_reset();
-		jw.run(); 
-		mqtt.run(); 
-	}
-	void begin() { 
-		esp_task_wdt_init(60, true);
-		esp_task_wdt_add(NULL);
-
-		Serial.begin(921600, SERIAL_8N1);
-		Serial.println(__BASE_FILE__ " " GIT_VERSION);
-		getLedPin();
-
-		jw.onConnect([this](){
-			jw.debug = mqtt.active = (WiFi.SSID() == "ChloeNet");
-		});
-		mqtt.setCallback([](String t, String m) {
-			dbg("MQTT got string '%s'", m.c_str());
-		});
-	}
-};
 
 JStuff j;
 
@@ -60,8 +38,8 @@ void setup() {
 	ledcAttachPin(pins.solarPwm, 0);
 }
 
-EggTimer sec(2000), minute(60000);
-EggTimer blink(100);
+Timer sec(2000), minute(60000);
+Timer blink(100);
 int loopCount = 0;
 int firstLoop = 1;
 float bv1, bv2;

@@ -31,8 +31,8 @@ curl: ${BUILD_DIR}/${MAIN_NAME}.bin
 	curl -v --limit-rate 10k --progress-bar -F "image=@${BUILD_DIR}/${MAIN_NAME}.bin" ${OTA_ADDR}/update  > /dev/null
 
 
-crctest:
-	gcc -o crc16heater_test crc16heater_test.c crc16heater.c
-	echo Should show fb1b0400230a280100
-	./crc16heater_test fb1b0400230a280100
+${MAIN_NAME}_csim:	${MAIN_NAME}.ino ${HOME}/Arduino/libraries/jimlib/src/jimlib.h ${HOME}/Arduino/libraries/jimlib/src/ESP32sim_ubuntu.h
+	g++  -DGIT_VERSION=\"$(GIT_VERSION)\" -x c++ -g $< -o $@ -DESP32 -DUBUNTU -I./ -I${HOME}/Arduino/libraries/jimlib/src 
+
+csim: ${MAIN_NAME}_csim 
 
