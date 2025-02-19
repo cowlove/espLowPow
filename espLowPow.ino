@@ -90,7 +90,7 @@ void loop() {
 	
 		String spost = 
 			Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
-			Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+			Sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 			Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
 			Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
 			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
