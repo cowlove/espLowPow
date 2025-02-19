@@ -88,8 +88,11 @@ void loop() {
 		r = client.begin("http://vheavy.com/log");
 		dbg("http.begin() returned %d\n", r);
 	
-		String spost = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+		String spost = 
+			Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
+			Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 			Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+			Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
 			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
 			Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
 			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
