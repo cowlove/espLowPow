@@ -21,6 +21,7 @@ struct {
 JStuff j;
 
 void setup() {
+	j.mqtt.active = false;
 	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
@@ -81,24 +82,26 @@ void loop() {
 		String mac = WiFi.macAddress();
 		mac.replace(":", "");
 		HTTPClient client;
-		WiFiClientSecure wc;
-		wc.setInsecure();
-		r = client.begin(wc, "https://thingproxy.freeboard.io/fetch/https://vheavy.com/log");
+		//WiFiClientSecure wc;
+		//wc.setInsecure();
+		//r = client.begin(wc, "http://vheavy.com/log");
+		r = client.begin("http://vheavy.com/log");
 		dbg("http.begin() returned %d\n", r);
 	
-		s = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+		String spost = Sfmt("{\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
 			Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
 			Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
 			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
 			Sfmt("\"Voltage1\":%.1f,", bv1) + 
 			Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
 		client.addHeader("Content-Type", "application/json");
-		r = client.POST(s.c_str());
+		r = client.POST(spost.c_str());
 		s =  client.getString();
 		client.end();
 	
-		dbg("http.POST() returned %d and %s\n", r, s.c_str());
+		dbg("http.POST() of '%s' returned %d and %s\n", spost.c_str(), r, s.c_str());
 		
 		StaticJsonDocument<1024> doc;
 		DeserializationError error = deserializeJson(doc, s);
@@ -116,7 +119,7 @@ void loop() {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 			} else { 
 				dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
-				webUpgrade("https://thingproxy.freeboard.io/fetch/https://vheavy.com/ota");
+				webUpgrade("http://vheavy.com/ota");
 			}	
 		}	  
 
@@ -142,6 +145,7 @@ void loop() {
 				pinMode(pins.powerControlPin, INPUT);
 			}
 			sleepMin = max(10, sleepMin);
+			//sleepMin = 1;
 			dbg("SLEEPING %d MINUTES", sleepMin);
 			//adc_power_off();
 			WiFi.disconnect(true);  // Disconnect from the network
