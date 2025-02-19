@@ -114,7 +114,6 @@ void loop() {
 		const int pwmEnd = doc["pwmEnd"];
 		int sleepMin = doc["sleep"];
 
-
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0
 				// dont update an existing -dirty unless ota_ver is also -dirty  
