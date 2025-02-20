@@ -160,7 +160,7 @@ void loop() {
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0
 				// dont update an existing -dirty unless ota_ver is also -dirty  
-				|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+				//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
 				) {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 			} else { 
