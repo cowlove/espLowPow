@@ -86,9 +86,9 @@ void loop() {
         dht.humidity().getEvent(&he);
         dp = calcDewpoint(he.relative_humidity, te.temperature);
         wc = calcWaterContent(dp);
-        //OUT("%s %s T: %04.1f H: %04.1f D: %04.1f W: %04.1f", getMacAddress().c_str(),
-        //    WiFi.localIP().toString().c_str(), 
-        //    te.temperature, he.relative_humidity, dp, wc);
+        OUT("%s %s T: %04.1f H: %04.1f D: %04.1f W: %04.1f", getMacAddress().c_str(),
+            WiFi.localIP().toString().c_str(), 
+            te.temperature, he.relative_humidity, dp, wc);
 		if (isnan(he.relative_humidity)) he.relative_humidity = -999;
 		if (isnan(he.temperature)) he.temperature = -999;
 		if (isnan(dp)) dp = -999;
