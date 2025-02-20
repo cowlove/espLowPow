@@ -14,10 +14,13 @@
 struct {
 	int led = getLedPin(); // D1 mini
  	int powerControlPin = 18;
-	int fanPower = 27;
-	int solarPwm = 25;
+	int fanPower = 16;
+	int solarPwm = 17;
 	int bv1 = 35;
 	int bv2 = 33;
+    int dhtGnd = 25;
+    int dhtData = 26;
+    int dhtVcc = 27;
 } pins;
 
 float calcDewpoint(float humi, float temp) {
@@ -31,7 +34,7 @@ float calcWaterContent(float temp) {
 }
 
 JStuff j;
-DHT_Unified dht(16, DHT22);
+DHT_Unified dht(pins.dhtData, DHT22);
 
 void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
@@ -41,6 +44,10 @@ void setup() {
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	gpio_deep_sleep_hold_dis();
 
+	pinMode(pins.dhtGnd, OUTPUT);
+	digitalWrite(pins.dhtGnd, 0);
+	pinMode(pins.dhtVcc, OUTPUT);
+	digitalWrite(pins.dhtVcc, 1);
 	pinMode(pins.powerControlPin, OUTPUT);
 	pinMode(pins.fanPower, OUTPUT);
 	pinMode(pins.solarPwm, OUTPUT);
@@ -52,6 +59,7 @@ void setup() {
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
 
+	delay(1000);
     dht.begin();
 
 }
@@ -81,7 +89,6 @@ void loop() {
 		bv2 = avgAnalogRead(pins.bv2);
 		firstLoop = 0;
 
-        sensors_event_t te, he;
         dht.temperature().getEvent(&te);
         dht.humidity().getEvent(&he);
         dp = calcDewpoint(he.relative_humidity, te.temperature);
@@ -153,7 +160,7 @@ void loop() {
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0
 				// dont update an existing -dirty unless ota_ver is also -dirty  
-				//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+				|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
 				) {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 			} else { 
