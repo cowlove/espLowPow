@@ -6,7 +6,10 @@
 #include <esp_task_wdt.h>
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
+#include <DHT.h>
+#include <DHT_U.h>
 #endif
+
 
 struct {
 	int led = getLedPin(); // D1 mini
@@ -17,10 +20,21 @@ struct {
 	int bv2 = 33;
 } pins;
 
+float calcDewpoint(float humi, float temp) {
+  float k;
+  k = log(humi/100) + (17.62 * temp) / (243.12 + temp);
+  return 243.12 * k / (17.62 - k);
+}
+
+float calcWaterContent(float temp) { 
+    return 5.04 + 0.24 * temp + 0.00945 * temp * temp + 0.000349 * temp * temp * temp;
+}
 
 JStuff j;
+DHT_Unified dht(16, DHT22);
 
 void setup() {
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 	j.mqtt.active = false;
 	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
@@ -37,14 +51,18 @@ void setup() {
 
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
+
+    dht.begin();
+
 }
 
 Timer sec(2000), minute(60000);
 Timer blink(100);
 int loopCount = 0;
 int firstLoop = 1;
-float bv1, bv2;
+float bv1, bv2, dp, wc;
 int bv2Thresh = 1310;
+        sensors_event_t te, he;
 
 void loop() {
 	j.run();
@@ -62,6 +80,19 @@ void loop() {
 		bv1 = avgAnalogRead(pins.bv1);
 		bv2 = avgAnalogRead(pins.bv2);
 		firstLoop = 0;
+
+        sensors_event_t te, he;
+        dht.temperature().getEvent(&te);
+        dht.humidity().getEvent(&he);
+        dp = calcDewpoint(he.relative_humidity, te.temperature);
+        wc = calcWaterContent(dp);
+        //OUT("%s %s T: %04.1f H: %04.1f D: %04.1f W: %04.1f", getMacAddress().c_str(),
+        //    WiFi.localIP().toString().c_str(), 
+        //    te.temperature, he.relative_humidity, dp, wc);
+		if (isnan(he.relative_humidity)) he.relative_humidity = -999;
+		if (isnan(he.temperature)) he.temperature = -999;
+		if (isnan(dp)) dp = -999;
+		if (isnan(wc)) wc = -999;
 	}
 	if (WiFi.status() == WL_CONNECTED) {
 		if (bv1 > 1000 && bv1 < 2000) {
@@ -97,6 +128,10 @@ void loop() {
 			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
 			Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
 			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+			Sfmt("\"Temp\":%.1f,", te.temperature) + 
+			Sfmt("\"Humidity\":%.1f,", he.relative_humidity) + 
+			Sfmt("\"DewPoint\":%.1f,", dp) + 
+			Sfmt("\"WaterContent\":%.1f,", wc) + 
 			Sfmt("\"Voltage1\":%.1f,", bv1) + 
 			Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
