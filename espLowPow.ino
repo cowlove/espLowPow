@@ -64,7 +64,7 @@ void loop() {
 		firstLoop = 0;
 	}
 	if (WiFi.status() == WL_CONNECTED) {
-		if (bv1 > 1000 && bv1 < 2300) {
+		if (bv1 > 1000 && bv1 < 2000) {
 			pinMode(pins.powerControlPin, OUTPUT);
 			digitalWrite(pins.powerControlPin, 1);
 			gpio_hold_en((gpio_num_t)pins.powerControlPin);
@@ -101,11 +101,11 @@ void loop() {
 			Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
 		client.addHeader("Content-Type", "application/json");
+		dbg("POST %s", spost.c_str());
 		r = client.POST(spost.c_str());
 		s =  client.getString();
 		client.end();
-	
-		dbg("http.POST() of '%s' returned %d and %s\n", spost.c_str(), r, s.c_str());
+		dbg("http.POST returned %d: %s\n", r, s.c_str());
 		
 		StaticJsonDocument<1024> doc;
 		DeserializationError error = deserializeJson(doc, s);
@@ -118,7 +118,7 @@ void loop() {
 		if (ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0
 				// dont update an existing -dirty unless ota_ver is also -dirty  
-				|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+				//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
 				) {
 				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
 			} else { 
@@ -148,7 +148,7 @@ void loop() {
 				digitalWrite(pins.powerControlPin, 0);
 				pinMode(pins.powerControlPin, INPUT);
 			}
-			sleepMin = max(10, sleepMin);
+			sleepMin = max(1, sleepMin);
 			//sleepMin = 1;
 			dbg("SLEEPING %d MINUTES", sleepMin);
 			//adc_power_off();
