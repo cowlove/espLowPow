@@ -38,15 +38,17 @@ DHT_Unified dht(pins.dhtData, DHT22);
 
 void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
+
+	pinMode(pins.dhtGnd, OUTPUT);
+	digitalWrite(pins.dhtGnd, 0);
+	pinMode(pins.dhtVcc, OUTPUT);
+	
 	j.mqtt.active = false;
 	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	gpio_deep_sleep_hold_dis();
 
-	pinMode(pins.dhtGnd, OUTPUT);
-	digitalWrite(pins.dhtGnd, 0);
-	pinMode(pins.dhtVcc, OUTPUT);
 	digitalWrite(pins.dhtVcc, 1);
 	pinMode(pins.powerControlPin, OUTPUT);
 	pinMode(pins.fanPower, OUTPUT);
