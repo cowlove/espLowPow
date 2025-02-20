@@ -59,7 +59,7 @@ void setup() {
 	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
 	ledcAttachPin(pins.solarPwm, 0);
 
-	delay(1000);
+	delay(5000);
     dht.begin();
 
 }
