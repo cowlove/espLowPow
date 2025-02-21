@@ -2,3 +2,6 @@ cat screenlog.0.1 screenlog.0 | rematch 'age":([0-9.]+)' | gnuplotDataVis -ps 'f
 scp ls:screenlog.0 . && cat screenlog.0.1 screenlog.0 | rematch '(\d\d)T(\d\d):(\d\d).*age1":([0-9.]+).*age2":([0-9.]+)' > 1.dat ; gnuplot -e 'p [23.6:*] "1.dat" u ($1+$2/24+$3/24/60):4 w l lw 5, "1.dat" u ($1+$2/24+$3/24/60):5 w l lw 5 ax x1y2; pause 111'
 ^C
 
+while sleep 1; do  ssh ls bash -c "'rematch DewPoint.:\([^,}]+\).*Voltage1.:\([^,}]+\).*Voltage2.:\([^,}]+\) simplePost/screenlog.0 | tail -n +88'" | gnuplot -e "plot '-' u 0:(\$3*12.61/2673) w l lw 5; pause 60"; done
+
+
