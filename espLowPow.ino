@@ -99,7 +99,7 @@ void loop() {
             WiFi.localIP().toString().c_str(), 
             te.temperature, he.relative_humidity, dp, wc);
 		if (isnan(he.relative_humidity)) he.relative_humidity = -999;
-		if (isnan(he.temperature)) he.temperature = -999;
+		if (isnan(te.temperature)) te.temperature = -999;
 		if (isnan(dp)) dp = -999;
 		if (isnan(wc)) wc = -999;
 	}
@@ -159,7 +159,7 @@ void loop() {
 		const int pwmEnd = doc["pwmEnd"];
 		int sleepMin = doc["sleep"];
 
-		if (ota_ver != NULL) { 
+		if (false && ota_ver != NULL) { 
 			if (strcmp(ota_ver, GIT_VERSION) == 0
 				// dont update an existing -dirty unless ota_ver is also -dirty  
 				//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
