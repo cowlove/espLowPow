@@ -21,12 +21,12 @@ for line in	io.TextIOWrapper(sys.stdin.buffer, errors='ignore'):
 
 
     # parse the plane output 
-    m = re.search(r'\[(.*)\].*Temp.:([-+0-9.]+).*DewPoint.:([-+0-9.]+)', line)
+    m = re.search(r'\[(.*)\].*Temp.:([-+0-9.]+).*DewPoint.:([-+0-9.]+).*Voltage1.:([0-9.]+).*Voltage2.:([0-9.]+)', line)
     if m:
         if line.find("MOF-Guest") != -1:
             d = m.group(1)
             #2025-02-20T19:17:39.380Z 0 -999
             date = datetime.strptime(d, '%Y-%m-%dT%H:%M:%S.%fZ')
             date += timedelta(hours = -8)
-            print("%.3f %s %s" % (date.timestamp() / 3600, m.group(2), m.group(3)))
+            print("%.3f %s %s %s %s" % (date.timestamp() / 3600, m.group(2), m.group(3), m.group(4), m.group(5)))
         
