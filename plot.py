@@ -2,6 +2,12 @@
 
 import os
 import argparse
+
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--metar", help="fetch and update metar data", action="store_true")
 parser.add_argument("-q", "--quick", help="don't fetch any external data, just plot", action="store_true")
