@@ -5,3 +5,5 @@ scp ls:screenlog.0 . && cat screenlog.0.1 screenlog.0 | rematch '(\d\d)T(\d\d):(
 while sleep 1; do  ssh ls bash -c "'rematch DewPoint.:\([^,}]+\).*Voltage1.:\([^,}]+\).*Voltage2.:\([^,}]+\) simplePost/screenlog.0 | tail -n +88'" | gnuplot -e "plot '-' u 0:(\$3*12.61/2673) w l lw 5; pause 60"; done
 
 
+#look at battery voltage
+gnuplot -e "plot 'data/plane.dat' u 1:4 w l; pause 111"
