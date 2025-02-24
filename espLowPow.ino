@@ -19,8 +19,10 @@ struct {
 	int bv1 = 35;
 	int bv2 = 33;
     int dhtGnd = 25;
-    int dhtData = 26;
-    int dhtVcc = 27;
+    int dhtVcc = 26;
+    int dht1Data = 27;
+    int dht2Data = 14;
+    int dht3Data = 12;
 } pins;
 
 float calcDewpoint(float humi, float temp) {
@@ -34,14 +36,24 @@ float calcWaterContent(float temp) {
 }
 
 JStuff j;
-DHT_Unified dht(pins.dhtData, DHT22);
+//DHT_Unified dht(pins.dhtData, DHT22);
+DHT_Unified *dht1, *dht2, *dht3;
 
 void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
+	if (getMacAddress() == "AC67B2368DFC") { 
+		pins.solarPwm = pins.powerControlPin = pins.fanPower = 0;
+		pins.dhtGnd = 0;
+		pins.dhtVcc = 22;
+		pins.dht1Data = 21;
+		pins.dht2Data = 16;
+		pins.dht3Data = 17;
+	}
 	pinMode(pins.dhtGnd, OUTPUT);
 	digitalWrite(pins.dhtGnd, 0);
 	pinMode(pins.dhtVcc, OUTPUT);
+	digitalWrite(pins.dhtVcc, 1);
 	
 	j.mqtt.active = false;
 	j.begin();
@@ -49,7 +61,6 @@ void setup() {
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	gpio_deep_sleep_hold_dis();
 
-	digitalWrite(pins.dhtVcc, 1);
 	pinMode(pins.powerControlPin, OUTPUT);
 	pinMode(pins.fanPower, OUTPUT);
 	pinMode(pins.solarPwm, OUTPUT);
@@ -62,17 +73,51 @@ void setup() {
 	ledcAttachPin(pins.solarPwm, 0);
 
 	delay(5000);
-    dht.begin();
-
+    
+	dht1 = new DHT_Unified(pins.dht1Data, DHT22);
+	dht2 = new DHT_Unified(pins.dht2Data, DHT22);
+	dht3 = new DHT_Unified(pins.dht3Data, DHT22);
+	dht1->begin();
+	dht2->begin();
+	dht3->begin();
 }
 
 Timer sec(2000), minute(60000);
 Timer blink(100);
 int loopCount = 0;
 int firstLoop = 1;
-float bv1, bv2, dp, wc;
+float bv1, bv2;
 int bv2Thresh = 1310;
-        sensors_event_t te, he;
+
+struct DhtResult { 
+	float temp, hum, dp, wc;
+};
+
+DhtResult readDht(DHT_Unified *dht, int n) { 
+	DhtResult rval;
+    sensors_event_t te, he;
+	
+	dht->temperature().getEvent(&te);
+	dht->humidity().getEvent(&he);
+	
+	rval.dp = calcDewpoint(he.relative_humidity, te.temperature);
+	rval.wc = calcWaterContent(rval.dp);
+	rval.hum = he.relative_humidity;
+	rval.temp = te.temperature;
+
+	OUT("%s %s N: %d T: %04.1f H: %04.1f D: %04.1f W: %04.1f", getMacAddress().c_str(),
+		WiFi.localIP().toString().c_str(), 
+		n, rval.temp, rval.hum, rval.dp, rval.wc);
+
+	if (isnan(rval.hum)) rval.hum = -999;
+	if (isnan(rval.temp)) rval.temp = -999;
+	if (isnan(rval.dp)) rval.dp = -999;
+	if (isnan(rval.wc)) rval.wc = -999;
+
+	return rval;
+}
+
+DhtResult r1, r2, r3;
 
 void loop() {
 	j.run();
@@ -87,21 +132,13 @@ void loop() {
 
 	int status = 0;
 	if (firstLoop) { 
+		firstLoop = 0;
 		bv1 = avgAnalogRead(pins.bv1);
 		bv2 = avgAnalogRead(pins.bv2);
-		firstLoop = 0;
 
-        dht.temperature().getEvent(&te);
-        dht.humidity().getEvent(&he);
-        dp = calcDewpoint(he.relative_humidity, te.temperature);
-        wc = calcWaterContent(dp);
-        OUT("%s %s T: %04.1f H: %04.1f D: %04.1f W: %04.1f", getMacAddress().c_str(),
-            WiFi.localIP().toString().c_str(), 
-            te.temperature, he.relative_humidity, dp, wc);
-		if (isnan(he.relative_humidity)) he.relative_humidity = -999;
-		if (isnan(te.temperature)) te.temperature = -999;
-		if (isnan(dp)) dp = -999;
-		if (isnan(wc)) wc = -999;
+		r1 = readDht(dht1, 1);
+		r2 = readDht(dht2, 2);
+		r3 = readDht(dht3, 3);
 	}
 	if (WiFi.status() == WL_CONNECTED) {
 		if (bv1 > 1000 && bv1 < 2000) {
@@ -137,15 +174,19 @@ void loop() {
 			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
 			Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
 			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-			Sfmt("\"Temp\":%.1f,", te.temperature) + 
-			Sfmt("\"Humidity\":%.1f,", he.relative_humidity) + 
-			Sfmt("\"DewPoint\":%.1f,", dp) + 
-			Sfmt("\"WaterContent\":%.1f,", wc) + 
+			Sfmt("\"Temp\":%.1f,", r1.temp) + 
+			Sfmt("\"Humidity\":%.1f,", r1.hum) + 
+			Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
+			Sfmt("\"WaterContent\":%.1f,", r1.wc) + 
+			Sfmt("\"DessicantT\":%.1f,", r2.temp) + 
+			Sfmt("\"DessicantDP\":%.1f,", r2.dp) + 
+			Sfmt("\"OutsideT\":%.1f,", r3.temp) + 
+			Sfmt("\"OutsideDP\":%.1f,", r3.dp) + 
 			Sfmt("\"Voltage1\":%.1f,", bv1) + 
 			Sfmt("\"Voltage2\":%.1f}\n", bv2);
 
 		client.addHeader("Content-Type", "application/json");
-		dbg("POST %s", spost.c_str());
+		Serial.printf("POST %s\n", spost.c_str());
 		r = client.POST(spost.c_str());
 		s =  client.getString();
 		client.end();
