@@ -239,21 +239,25 @@ void loop() {
 			//adc_power_off();
 			WiFi.disconnect(true);  // Disconnect from the network
 			WiFi.mode(WIFI_OFF);    // Switch WiFi off
-
 			esp_sleep_enable_timer_wakeup(60LL * 1000000LL * sleepMin);
 			delay(100);
 			esp_deep_sleep_start();									
 			ESP.restart();					
 		}
 	}
+
+	OUT("Web post failed #%d", loopCount);
 	// changes to jimlib
 	if(loopCount++ > 30) { 
-		dbg("TOO MANY RETRIES, SLEEPING");
+		int failSleepMinutes = 10;
+		dbg("Too many retries, sleeping %d minutes", failSleepMinutes);
 		digitalWrite(pins.led, 0);
 		pinMode(pins.powerControlPin, INPUT);
+		WiFi.disconnect(true);  // Disconnect from the network
+		WiFi.mode(WIFI_OFF);    // Switch WiFi off
 		delay(100);
-		ESP.restart();					
-		esp_sleep_enable_timer_wakeup(300LL * 1000000LL);
+		//ESP.restart();					
+		esp_sleep_enable_timer_wakeup(failSleepMinutes * 60LL * 1000000LL);
 		esp_deep_sleep_start();
 	}
 }

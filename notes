@@ -6,4 +6,8 @@ while sleep 1; do  ssh ls bash -c "'rematch DewPoint.:\([^,}]+\).*Voltage1.:\([^
 
 
 #look at battery voltage
-gnuplot -e "plot 'data/plane.dat' u 1:4 w l; pause 111"
+gnuplot -e "f='data/plane.dat'; plot [0:*][2200:2800] f u (\$1-483436):6 w l, f u (\$1-483436):7 w l; pause 111
+
+
+
+# 12v battery voltage 12.86V at 2680
