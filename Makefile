@@ -31,8 +31,8 @@ curl: ${BUILD_DIR}/${MAIN_NAME}.bin
 	curl -v --limit-rate 10k --progress-bar -F "image=@${BUILD_DIR}/${MAIN_NAME}.bin" ${OTA_ADDR}/update  > /dev/null
 
 
-${MAIN_NAME}_csim:	${MAIN_NAME}.ino ${HOME}/Arduino/libraries/jimlib/src/jimlib.h ${HOME}/Arduino/libraries/jimlib/src/ESP32sim_ubuntu.h
-	g++  -DGIT_VERSION=\"$(GIT_VERSION)\" -x c++ -g $< -o $@ -DESP32 -DUBUNTU -I./ -I${HOME}/Arduino/libraries/jimlib/src 
+${MAIN_NAME}_csim: 	
+	g++  -DGIT_VERSION=\"$(GIT_VERSION)\" -x c++ -g ${MAIN_NAME}.ino -o $@ -DESP32 -DUBUNTU -DCSIM -I./ -I${HOME}/Arduino/libraries/jimlib/src 
 
 csim: ${MAIN_NAME}_csim 
 
