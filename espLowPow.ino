@@ -90,8 +90,14 @@ float bv1, bv2;
 int bv2Thresh = 1310;
 
 struct DhtResult { 
-	float temp, hum, dp, wc;
+	float temp, hum, dp, wc, vpd;
 };
+
+float vpd(float t, float rh) { 
+	float sp = 0.61078 * exp((17.27 * t) / (t + 237.3)) * 7.50062;
+	float vpd = (100 - rh) / 100 * sp;
+	return vpd;
+}
 
 DhtResult readDht(DHT_Unified *dht, int n) { 
 	DhtResult rval;
@@ -104,10 +110,11 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 	rval.wc = calcWaterContent(rval.dp);
 	rval.hum = he.relative_humidity;
 	rval.temp = te.temperature;
+	rval.vpd = vpd(rval.temp, rval.hum);
 
-	OUT("%s %s N: %d T: %04.1f H: %04.1f D: %04.1f W: %04.1f", getMacAddress().c_str(),
+	OUT("%s %s N: %d T: %04.1f H: %04.1f D: %04.1f W: %04.1f V: %04.1", getMacAddress().c_str(),
 		WiFi.localIP().toString().c_str(), 
-		n, rval.temp, rval.hum, rval.dp, rval.wc);
+		n, rval.temp, rval.hum, rval.dp, rval.wc, rval.vpd);
 
 	if (isnan(rval.hum)) rval.hum = -999;
 	if (isnan(rval.temp)) rval.temp = -999;
@@ -118,7 +125,7 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 }
 
 DhtResult r1, r2, r3;
-
+		
 void loop() {
 	j.run();
 
@@ -165,6 +172,8 @@ void loop() {
 		r = client.begin("http://vheavy.com/log");
 		dbg("http.begin() returned %d\n", r);
 	
+
+
 		String spost = 
 			Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
 			Sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 

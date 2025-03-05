@@ -19,8 +19,8 @@ def printPsychrData(t, dp):
     #https://en.wikipedia.org/wiki/Tetens_equation, saturation pressure in kPa
     satP = 0.61078 * math.exp((17.27 * t) / (t + 237.3)) * 7.50062
     
-    vpd = (100 - rh) / 100 * satP;
-    vp = rh / 100 * satP;
+    vpd = (100 - rh) / 100 * satP
+    vp = rh / 100 * satP
     print("%05.2f %05.2f %03.1f %05.2f %05.2f " % (t, dp, rh, vp, vpd), end='')
 
 
