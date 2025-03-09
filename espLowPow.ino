@@ -14,8 +14,8 @@
 struct {
 	int led = getLedPin(); // D1 mini
  	int powerControlPin = 18;
-	int fanPower = 16;
-	int solarPwm = 17;
+	int fanPower = 14;
+	int fanPwm = 12;
 	int bv1 = 35;
 	int bv2 = 33;
     int dhtGnd = 25;
@@ -43,13 +43,17 @@ void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
 	if (getMacAddress() == "AC67B2368DFC") { 
-		pins.solarPwm = pins.powerControlPin = pins.fanPower = 0;
+		pins.powerControlPin = pins.fanPower = 0;
 		pins.dhtGnd = 0;
 		pins.dhtVcc = 22;
 		pins.dht1Data = 21;
 		pins.dht2Data = 16;
 		pins.dht3Data = 17;
 	}
+	if (getMacAddress() == "A0DD6C725970") { 
+		pins.dht2Data = pins.dht3Data = 0;
+	}
+		
 	pinMode(pins.dhtGnd, OUTPUT);
 	digitalWrite(pins.dhtGnd, 0);
 	pinMode(pins.dhtVcc, OUTPUT);
@@ -63,14 +67,13 @@ void setup() {
 
 	pinMode(pins.powerControlPin, OUTPUT);
 	pinMode(pins.fanPower, OUTPUT);
-	pinMode(pins.solarPwm, OUTPUT);
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.powerControlPin, 0);
 	digitalWrite(pins.fanPower, 0);
 	digitalWrite(pins.led, 0);
 
-	ledcSetup(0, 50, 16); // channel 0, 50 Hz, 16-bit width
-	ledcAttachPin(pins.solarPwm, 0);
+	ledcSetup(0, 25000, 6); // channel 0, 50 Hz, 16-bit width
+	ledcAttachPin(pins.fanPwm, 0);
 
 	delay(5000);
     
@@ -112,7 +115,7 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 	rval.temp = te.temperature;
 	rval.vpd = vpd(rval.temp, rval.hum);
 
-	OUT("%s %s N: %d T: %04.1f H: %04.1f D: %04.1f W: %04.1f V: %04.1", getMacAddress().c_str(),
+	OUT("%s %s N: %d T: %04.1f H: %04.1f D: %04.1f W: %04.1f V: %04.1f", getMacAddress().c_str(),
 		WiFi.localIP().toString().c_str(), 
 		n, rval.temp, rval.hum, rval.dp, rval.wc, rval.vpd);
 
@@ -120,6 +123,7 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 	if (isnan(rval.temp)) rval.temp = -999;
 	if (isnan(rval.dp)) rval.dp = -999;
 	if (isnan(rval.wc)) rval.wc = -999;
+	if (isnan(rval.vpd)) rval.vpd = -999;
 
 	return rval;
 }
@@ -154,12 +158,6 @@ void loop() {
 			gpio_hold_en((gpio_num_t)pins.powerControlPin);
 			gpio_deep_sleep_hold_en();
 		}
-		if (bv2 > bv2Thresh) {
-			pinMode(pins.fanPower, OUTPUT);
-			digitalWrite(pins.fanPower, 1);
-			gpio_hold_en((gpio_num_t)pins.fanPower);
-			gpio_deep_sleep_hold_en();
-		}
 		
 		int r = 0;
 		String s;
@@ -170,7 +168,7 @@ void loop() {
 		//wc.setInsecure();
 		//r = client.begin(wc, "http://vheavy.com/log");
 		r = client.begin("http://vheavy.com/log");
-		dbg("http.begin() returned %d\n", r);
+		OUT("http.begin() returned %d", r);
 	
 
 
@@ -186,6 +184,7 @@ void loop() {
 			Sfmt("\"Temp\":%.1f,", r1.temp) + 
 			Sfmt("\"Humidity\":%.1f,", r1.hum) + 
 			Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
+			Sfmt("\"VPD\":%.1f,", r1.vpd) + 
 			Sfmt("\"WaterContent\":%.1f,", r1.wc) + 
 			Sfmt("\"DessicantT\":%.1f,", r2.temp) + 
 			Sfmt("\"DessicantDP\":%.1f,", r2.dp) + 
@@ -199,52 +198,56 @@ void loop() {
 		r = client.POST(spost.c_str());
 		s =  client.getString();
 		client.end();
-		dbg("http.POST returned %d: %s\n", r, s.c_str());
+		OUT("http.POST returned %d: %s", r, s.c_str());
 		
 		StaticJsonDocument<1024> doc;
 		DeserializationError error = deserializeJson(doc, s);
 		const char *ota_ver = doc["ota_ver"];
 		status = doc["status"];
-		const int pwm = doc["pwm"];
-		const int pwmEnd = doc["pwmEnd"];
+		const int fanPwm = doc["fanPwm"];
+		const int fanMinutes = doc["fanMinutes"];
 		int sleepMin = doc["sleep"];
 
-		if (ota_ver != "" && ota_ver != NULL) { 
-			if (strcmp(ota_ver, GIT_VERSION) == 0
+		if (ota_ver != NULL) { 
+			if (strcmp(ota_ver, GIT_VERSION) == 0 || strlen(ota_ver) == 0
 				// dont update an existing -dirty unless ota_ver is also -dirty  
 				//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
 				) {
-				dbg("OTA version '%s', local version '%s', no upgrade needed\n", ota_ver, GIT_VERSION);
+				OUT("OTA version '%s', local version '%s', no upgrade needed", ota_ver, GIT_VERSION);
 			} else { 
-				dbg("OTA version '%s', local version '%s', upgrading...\n", ota_ver, GIT_VERSION);
+				OUT("OTA version '%s', local version '%s', upgrading...", ota_ver, GIT_VERSION);
 				webUpgrade("http://vheavy.com/ota");
 			}	
 		}	  
 
+		if (status == 1 && fanMinutes > 0) {
+			OUT("Turning on fan for %d minutes", fanMinutes);
+			ledcWrite(0, 0);
+			delay(500);
+			pinMode(pins.fanPower, OUTPUT);
+			digitalWrite(pins.fanPower, 1);
+			delay(2000);
+			WiFi.disconnect(true);  // Disconnect from the network
+			WiFi.mode(WIFI_OFF);    // Switch WiFi off
+
+			ledcWrite(0, fanPwm);
+			for(int sec = 0; sec < 60 * fanMinutes; sec++) {
+				j.run();
+				delay(1000); 
+			}
+			j.run();
+			ledcWrite(0, 0);
+			delay(6000);
+			digitalWrite(pins.fanPower, 0);
+			ESP.restart();                        
+		}
+
+
 		if (status == 1) {
-			if (0 && pwm > 500) { 
-				pinMode(pins.powerControlPin, OUTPUT);
-				digitalWrite(pins.powerControlPin, 1);
-				delay(100);
-				ledcWrite(0, pwm * 4715 / 1500);
-				if (pwmEnd > 500) { 
-					for (int n = pwm; n != pwmEnd; n += (pwmEnd > pwm ? 1 : -1)) { 
-						ledcWrite(0, n * 4715 / 1500);
-						delay(10);
-					}
-				}
-				delay(1000);
-				ledcDetachPin(pins.solarPwm);
-				pinMode(pins.solarPwm, INPUT);
-			}
-			if (bv2 <= bv2Thresh) { 
-				gpio_hold_dis((gpio_num_t)pins.powerControlPin);
-				digitalWrite(pins.powerControlPin, 0);
-				pinMode(pins.powerControlPin, INPUT);
-			}
 			sleepMin = max(1, sleepMin);
 			//sleepMin = 1;
-			dbg("SLEEPING %d MINUTES", sleepMin);
+			OUT("SLEEPING %d MINUTES", sleepMin);
+			delay(5000);
 			//adc_power_off();
 			WiFi.disconnect(true);  // Disconnect from the network
 			WiFi.mode(WIFI_OFF);    // Switch WiFi off
@@ -259,7 +262,7 @@ void loop() {
 	// changes to jimlib
 	if(loopCount++ > 30) { 
 		int failSleepMinutes = 10;
-		dbg("Too many retries, sleeping %d minutes", failSleepMinutes);
+		OUT("Too many retries, sleeping %d minutes", failSleepMinutes);
 		digitalWrite(pins.led, 0);
 		pinMode(pins.powerControlPin, INPUT);
 		WiFi.disconnect(true);  // Disconnect from the network
