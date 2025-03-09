@@ -14,8 +14,8 @@
 struct {
 	int led = getLedPin(); // D1 mini
  	int powerControlPin = 18;
-	int fanPower = 14;
-	int fanPwm = 12;
+	int fanPower = 9; // SD2 pin on T-18
+	int fanPwm = 13;
 	int bv1 = 35;
 	int bv2 = 33;
     int dhtGnd = 25;
