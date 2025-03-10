@@ -125,7 +125,69 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 }
 
 DhtResult r1, r2, r3;
-		
+int fanMinutes = 0, fanPwm = 0, sleepMin = 0;
+
+int postData(bool allowUpdate) { 
+	int r = 0;
+	String s;
+	String mac = WiFi.macAddress();
+	mac.replace(":", "");
+	HTTPClient client;
+	//WiFiClientSecure wc;
+	//wc.setInsecure();
+	//r = client.begin(wc, "http://vheavy.com/log");
+	r = client.begin("http://vheavy.com/log");
+	OUT("http.begin() returned %d", r);
+
+	String spost = 
+		Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
+		Sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+		Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+		Sfmt("\"SSID\":\"%s\",", WiFi.SSID().c_str()) + 
+		Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
+		Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
+		Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+		Sfmt("\"Temp\":%.1f,", r1.temp) + 
+		Sfmt("\"Humidity\":%.1f,", r1.hum) + 
+		Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
+		Sfmt("\"VPD\":%.1f,", r1.vpd) + 
+		Sfmt("\"WaterContent\":%.1f,", r1.wc) + 
+		Sfmt("\"DessicantT\":%.1f,", r2.temp) + 
+		Sfmt("\"DessicantDP\":%.1f,", r2.dp) + 
+		Sfmt("\"OutsideT\":%.1f,", r3.temp) + 
+		Sfmt("\"OutsideDP\":%.1f,", r3.dp) + 
+		Sfmt("\"Voltage1\":%.1f,", bv1) + 
+		Sfmt("\"Voltage2\":%.1f}\n", bv2);
+
+	client.addHeader("Content-Type", "application/json");
+	Serial.printf("POST %s\n", spost.c_str());
+	r = client.POST(spost.c_str());
+	s =  client.getString();
+	client.end();
+	OUT("http.POST returned %d: %s", r, s.c_str());
+	
+	StaticJsonDocument<1024> doc;
+	DeserializationError error = deserializeJson(doc, s);
+	const char *ota_ver = doc["ota_ver"];
+	int status = doc["status"];
+	fanPwm = doc["fanPwm"];
+	fanMinutes = doc["fanMinutes"];
+	sleepMin = doc["sleep"];
+
+	if (ota_ver != NULL && allowUpdate) { 
+		if (strcmp(ota_ver, GIT_VERSION) == 0 || strlen(ota_ver) == 0
+			// dont update an existing -dirty unless ota_ver is also -dirty  
+			//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+			) {
+			OUT("OTA version '%s', local version '%s', no upgrade needed", ota_ver, GIT_VERSION);
+		} else { 
+			OUT("OTA version '%s', local version '%s', upgrading...", ota_ver, GIT_VERSION);
+			webUpgrade("http://vheavy.com/ota");
+		}	
+	}	  
+	return status;
+}
+
 void loop() {
 	j.run();
 
@@ -148,67 +210,8 @@ void loop() {
 		r3 = readDht(dht3, 3);
 	}
 	if (WiFi.status() == WL_CONNECTED) {
-		if (bv1 > 1000 && bv1 < 2000) {
-		}
-		
-		int r = 0;
-		String s;
-		String mac = WiFi.macAddress();
-		mac.replace(":", "");
-		HTTPClient client;
-		//WiFiClientSecure wc;
-		//wc.setInsecure();
-		//r = client.begin(wc, "http://vheavy.com/log");
-		r = client.begin("http://vheavy.com/log");
-		OUT("http.begin() returned %d", r);
+		status = postData(true);
 	
-		String spost = 
-			Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
-			Sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-			Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-			Sfmt("\"SSID\":\"%s\",", WiFi.SSID().c_str()) + 
-			Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
-			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
-			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-			Sfmt("\"Temp\":%.1f,", r1.temp) + 
-			Sfmt("\"Humidity\":%.1f,", r1.hum) + 
-			Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
-			Sfmt("\"VPD\":%.1f,", r1.vpd) + 
-			Sfmt("\"WaterContent\":%.1f,", r1.wc) + 
-			Sfmt("\"DessicantT\":%.1f,", r2.temp) + 
-			Sfmt("\"DessicantDP\":%.1f,", r2.dp) + 
-			Sfmt("\"OutsideT\":%.1f,", r3.temp) + 
-			Sfmt("\"OutsideDP\":%.1f,", r3.dp) + 
-			Sfmt("\"Voltage1\":%.1f,", bv1) + 
-			Sfmt("\"Voltage2\":%.1f}\n", bv2);
-
-		client.addHeader("Content-Type", "application/json");
-		Serial.printf("POST %s\n", spost.c_str());
-		r = client.POST(spost.c_str());
-		s =  client.getString();
-		client.end();
-		OUT("http.POST returned %d: %s", r, s.c_str());
-		
-		StaticJsonDocument<1024> doc;
-		DeserializationError error = deserializeJson(doc, s);
-		const char *ota_ver = doc["ota_ver"];
-		status = doc["status"];
-		const int fanPwm = doc["fanPwm"];
-		const int fanMinutes = doc["fanMinutes"];
-		int sleepMin = doc["sleep"];
-
-		if (ota_ver != NULL) { 
-			if (strcmp(ota_ver, GIT_VERSION) == 0 || strlen(ota_ver) == 0
-				// dont update an existing -dirty unless ota_ver is also -dirty  
-				//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
-				) {
-				OUT("OTA version '%s', local version '%s', no upgrade needed", ota_ver, GIT_VERSION);
-			} else { 
-				OUT("OTA version '%s', local version '%s', upgrading...", ota_ver, GIT_VERSION);
-				webUpgrade("http://vheavy.com/ota");
-			}	
-		}	  
-
 		if (status == 1 && fanMinutes > 0) {
 			OUT("Turning on fan for %d minutes", fanMinutes);
 			ledcWrite(0, 0);
@@ -216,21 +219,29 @@ void loop() {
 			pinMode(pins.fanPower, OUTPUT);
 			digitalWrite(pins.fanPower, 1);
 			delay(2000);
-			WiFi.disconnect(true);  // Disconnect from the network
-			WiFi.mode(WIFI_OFF);    // Switch WiFi off
+			//WiFi.disconnect(true);  // Disconnect from the network
+			//WiFi.mode(WIFI_OFF);    // Switch WiFi off
 
 			ledcWrite(0, fanPwm);
 			for(int sec = 0; sec < 60 * fanMinutes; sec++) {
 				j.run();
 				delay(1000); 
 			}
+			for(int retries = 0; retries < 10; retries++) {
+				j.run(); 
+				status = postData(false);
+				if (status == 1)
+					break;
+			}
 			j.run();
 			ledcWrite(0, 0);
 			delay(6000);
 			digitalWrite(pins.fanPower, 0);
+			WiFi.disconnect(true);  // Disconnect from the network
+			WiFi.mode(WIFI_OFF);    // Switch WiFi off
+			delay(1000);
 			ESP.restart();                        
 		}
-
 
 		if (status == 1) {
 			sleepMin = max(1, sleepMin);
@@ -241,7 +252,7 @@ void loop() {
 			WiFi.disconnect(true);  // Disconnect from the network
 			WiFi.mode(WIFI_OFF);    // Switch WiFi off
 			esp_sleep_enable_timer_wakeup(60LL * 1000000LL * sleepMin);
-			delay(100);
+			delay(1000);
 			esp_deep_sleep_start();									
 			ESP.restart();					
 		}
