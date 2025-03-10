@@ -13,9 +13,8 @@
 
 struct {
 	int led = getLedPin(); // D1 mini
- 	int powerControlPin = 18;
-	int fanPower = 9; // SD2 pin on T-18
-	int fanPwm = 13;
+	int fanPower = 13; 
+	int fanPwm = 32;
 	int bv1 = 35;
 	int bv2 = 33;
     int dhtGnd = 25;
@@ -43,7 +42,7 @@ void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
 	if (getMacAddress() == "AC67B2368DFC") { 
-		pins.powerControlPin = pins.fanPower = 0;
+		pins.fanPower = 0;
 		pins.dhtGnd = 0;
 		pins.dhtVcc = 22;
 		pins.dht1Data = 21;
@@ -61,14 +60,11 @@ void setup() {
 	
 	j.mqtt.active = false;
 	j.begin();
-	gpio_hold_dis((gpio_num_t)pins.powerControlPin);
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	gpio_deep_sleep_hold_dis();
 
-	pinMode(pins.powerControlPin, OUTPUT);
 	pinMode(pins.fanPower, OUTPUT);
 	pinMode(pins.led, OUTPUT);
-	digitalWrite(pins.powerControlPin, 0);
 	digitalWrite(pins.fanPower, 0);
 	digitalWrite(pins.led, 0);
 
@@ -153,10 +149,6 @@ void loop() {
 	}
 	if (WiFi.status() == WL_CONNECTED) {
 		if (bv1 > 1000 && bv1 < 2000) {
-			pinMode(pins.powerControlPin, OUTPUT);
-			digitalWrite(pins.powerControlPin, 1);
-			gpio_hold_en((gpio_num_t)pins.powerControlPin);
-			gpio_deep_sleep_hold_en();
 		}
 		
 		int r = 0;
@@ -170,8 +162,6 @@ void loop() {
 		r = client.begin("http://vheavy.com/log");
 		OUT("http.begin() returned %d", r);
 	
-
-
 		String spost = 
 			Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
 			Sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
@@ -179,7 +169,6 @@ void loop() {
 			Sfmt("\"SSID\":\"%s\",", WiFi.SSID().c_str()) + 
 			Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
 			Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
-			Sfmt("\"Pow\":%d,", digitalRead(pins.powerControlPin)) + 
 			Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
 			Sfmt("\"Temp\":%.1f,", r1.temp) + 
 			Sfmt("\"Humidity\":%.1f,", r1.hum) + 
@@ -264,7 +253,6 @@ void loop() {
 		int failSleepMinutes = 10;
 		OUT("Too many retries, sleeping %d minutes", failSleepMinutes);
 		digitalWrite(pins.led, 0);
-		pinMode(pins.powerControlPin, INPUT);
 		WiFi.disconnect(true);  // Disconnect from the network
 		WiFi.mode(WIFI_OFF);    // Switch WiFi off
 		delay(100);
