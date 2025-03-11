@@ -27,10 +27,10 @@ if not args.quick:
     print("OK")
 
 os.system('gnuplot -e "set grid; st=20143.2;f=\'./data/plane.dat\'; set terminal qt size 1200,800;' +
-    'p [0:*][0:15] ' +
+    'p [0:*][0:16]  ' +
     'f u (\\$1-st):7 w l title \'Cockpit Interior VDP\' lw 3' +
     ', f u (\\$1-st):17 w l title \'Ambient VPD\'' +
     ', f u (\\$1-st):12 w l title \'Dessicant Exhaust VDP\'' +
     #', \'./data/metar.dat\' u 1:2 w l title \'METAR Dewpoint\';' + 
-    '; pause 1111"')
+    ', 4; pause 1111"')
 

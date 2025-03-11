@@ -45,8 +45,8 @@ void setup() {
 		pins.fanPower = 0;
 		pins.dhtGnd = 0;
 		pins.dhtVcc = 22;
-		pins.dht1Data = 21;
-		pins.dht2Data = 16;
+		pins.dht1Data = 16;
+		pins.dht2Data = 21;
 		pins.dht3Data = 17;
 	}
 	if (getMacAddress() == "A0DD6C725970") { 
