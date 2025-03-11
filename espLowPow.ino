@@ -227,6 +227,12 @@ void loop() {
 				j.run();
 				delay(1000); 
 			}
+			bv1 = avgAnalogRead(pins.bv1);
+			bv2 = avgAnalogRead(pins.bv2);
+	
+			r1 = readDht(dht1, 1);
+			r2 = readDht(dht2, 2);
+			r3 = readDht(dht3, 3);
 			for(int retries = 0; retries < 10; retries++) {
 				j.run(); 
 				status = postData(false);
