@@ -1,12 +1,11 @@
 #include "jimlib.h"
 
-#ifndef UBUNTU
+#ifndef CSIM
 #include <ArduinoJson.h>
-
 #include <esp_task_wdt.h>
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
-#include <DHT.h>
+#include <DHT.h> //arduino-cli lib install "DHT sensor library"  
 #include <DHT_U.h>
 #endif
 
@@ -149,6 +148,7 @@ int postData(bool allowUpdate) {
 		Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
 		Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
 		Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+		Sfmt("\"FanPWM\":%d,", fanPwm) + 
 		Sfmt("\"Temp\":%.1f,", r1.temp) + 
 		Sfmt("\"Humidity\":%.1f,", r1.hum) + 
 		Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
