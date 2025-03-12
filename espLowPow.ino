@@ -167,7 +167,7 @@ int postData(bool allowUpdate) {
 	s =  client.getString();
 	client.end();
 	OUT("http.POST returned %d: %s", r, s.c_str());
-	
+
 	StaticJsonDocument<1024> doc;
 	DeserializationError error = deserializeJson(doc, s);
 	const char *ota_ver = doc["ota_ver"];
@@ -289,3 +289,4 @@ void loop() {
 		esp_deep_sleep_start();
 	}
 }
+// 
