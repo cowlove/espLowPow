@@ -229,6 +229,15 @@ void loop() {
 				j.run();
 				delay(1000); 
 			}
+			digitalWrite(pins.dhtVcc, 0);
+			delay(500);
+			digitalWrite(pins.dhtVcc, 1);
+			delay(1000);
+			dht1->begin();
+			dht2->begin();
+			dht3->begin();
+			delay(1000);
+
 			bv1 = avgAnalogRead(pins.bv1);
 			bv2 = avgAnalogRead(pins.bv2);
 	
