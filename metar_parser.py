@@ -47,25 +47,27 @@ for line in	io.TextIOWrapper(sys.stdin.buffer, errors='ignore'):
         r'OutsideT.:([-+0-9.]+).*OutsideDP.:([-+0-9.]+).*' +
         r'Voltage1.:([0-9.]+).*Voltage2.:([0-9.]+)', line)
     if m:
-        if line.find("MOF-Guest") != -1:
-            d = m.group(1)
-            #2025-02-20T19:17:39.380Z 0 -999
-            date = datetime.strptime(d, '%Y-%m-%dT%H:%M:%S.%fZ')
-            date += timedelta(hours = -8)
+        try:
+            if line.find("MOF-Guest") != -1:
+                d = m.group(1)
+                #2025-02-20T19:17:39.380Z 0 -999
+                date = datetime.strptime(d, '%Y-%m-%dT%H:%M:%S.%fZ')
+                date += timedelta(hours = -8)
 
-            print("%.3f %.1f " % (date.timestamp() / 86400, float(m.group(3))), end='')
-            printPsychrData(float(m.group(2)), float(m.group(4)))
-            printPsychrData(float(m.group(5)), float(m.group(6)))
-            printPsychrData(float(m.group(7)), float(m.group(8)))
-            print("%.1f %.1f" % (float(m.group(9)), float(m.group(10))), end='')
+                print("%.3f %.1f " % (date.timestamp() / 86400, float(m.group(3))), end='')
+                printPsychrData(float(m.group(2)), float(m.group(4)))
+                printPsychrData(float(m.group(5)), float(m.group(6)))
+                printPsychrData(float(m.group(7)), float(m.group(8)))
+                print("%.1f %.1f " % (float(m.group(9)), float(m.group(10))), end='')
 
-            fanPWM = fan = 0
-            m = re.search(r'Fan.:([-+0-9.]+).*FanPWM.:([-+0-9.]+)', line)
-            if m:
-                fan = float(m.group(1))
-                fanPWM = float(m.group(2))
-            print("%.1f %.1f" % (fan, fanPWM))
-            
+                fanPWM = fan = 0
+                m = re.search(r'Fan.:([-+0-9.]+).*FanPWM.:([-+0-9.]+)', line)
+                if m:
+                    fan = float(m.group(1))
+                    fanPWM = float(m.group(2))
+                print("%.1f %.1f" % (fan, fanPWM))
+        except:
+            0            
             #m.group(2), m.group(3), m.group(5), m.group(7),m.group(9), m.group(10)))
     else:    
         m = re.search(r'\[(.*)\].*Temp.:([-+0-9.]+).*DewPoint.:([-+0-9.]+).*' +
