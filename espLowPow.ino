@@ -230,6 +230,7 @@ void loop() {
 				delay(1000); 
 			}
 			digitalWrite(pins.dhtVcc, 0);
+			digitalWrite(pins.dhtGnd, 0);
 			delay(500);
 			digitalWrite(pins.dhtVcc, 1);
 			delay(1000);
