@@ -102,6 +102,8 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 	DhtResult rval;
     sensors_event_t te, he;
 	
+	he.humidity = te.temperature = -999;
+	
 	dht->temperature().getEvent(&te);
 	dht->humidity().getEvent(&he);
 	
