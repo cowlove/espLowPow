@@ -30,9 +30,9 @@ mocat:
 curl: ${BUILD_DIR}/${MAIN_NAME}.bin
 	curl -v --limit-rate 10k --progress-bar -F "image=@${BUILD_DIR}/${MAIN_NAME}.bin" ${OTA_ADDR}/update  > /dev/null
 
-
+.PHONY: ${MAIN_NAME}_csim
 ${MAIN_NAME}_csim: 	
-	g++  -DGIT_VERSION=\"$(GIT_VERSION)\" -x c++ -g ${MAIN_NAME}.ino -o $@ -DESP32 -DUBUNTU -DCSIM -I./ -I${HOME}/Arduino/libraries/jimlib/src 
+	g++  -fconcepts -DGIT_VERSION=\"$(GIT_VERSION)\" -x c++ -g ${MAIN_NAME}.ino -o $@ -DESP32 -DUBUNTU -DCSIM -I./ -I${HOME}/Arduino/libraries/jimlib/src 
 
 csim: ${MAIN_NAME}_csim 
 
