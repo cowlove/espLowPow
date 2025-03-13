@@ -1,12 +1,12 @@
 #include "jimlib.h"
+//#include "sensorNetworkEspNOW.h"
 
-#ifndef UBUNTU
+#ifndef CSIM
 #include <ArduinoJson.h>
-
 #include <esp_task_wdt.h>
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
-#include <DHT.h>
+#include <DHT.h> //arduino-cli lib install "DHT sensor library"  
 #include <DHT_U.h>
 #endif
 
@@ -38,8 +38,38 @@ JStuff j;
 //DHT_Unified dht(pins.dhtData, DHT22);
 DHT_Unified *dht1, *dht2, *dht3;
 
+#if 0
+ConfigItemMAC c0;
+ConfigItemSchemaHash c1;
+ConfigItemADC c2("LIPO", 33);
+ConfigItemDHT c3("TEMP", 33);
+ConfigItemInput c4("FAN", 12, INPUT_PULLUP);
+ConfigItemMillis c5;
+ConfigItemOutput c6("VCC", 13, 1);
+ConfigItemGit c7;
+#endif 
+
 void setup() {
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
+#if 0
+	string sch = ConfigItem::makeAllSchema();
+	printf("%s\n", sch.c_str());
+
+	delay(10);
+	sch = ConfigItem::makeAllResults();
+	printf("%s\n", sch.c_str());
+
+	ConfigItem::parseAllResults("MAC=FFXXXAA SCHASH=YYYHASHYYY LIPO=2.000000 "
+		"TEMP=3.000000 MILLIS=40 ");
+
+	ConfigItem::debugPrint();
+
+	c1.result = "MUSCHEMA";
+	c6.result = "2";
+
+	sch = ConfigItem::makeAllSetValues();
+	printf("%s\n", sch.c_str());
+#endif 
+	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
 	if (getMacAddress() == "AC67B2368DFC") { 
 		pins.fanPower = 0;
@@ -149,6 +179,7 @@ int postData(bool allowUpdate) {
 		Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
 		Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
 		Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+		Sfmt("\"FanPWM\":%d,", fanPwm) + 
 		Sfmt("\"Temp\":%.1f,", r1.temp) + 
 		Sfmt("\"Humidity\":%.1f,", r1.hum) + 
 		Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
@@ -167,7 +198,7 @@ int postData(bool allowUpdate) {
 	s =  client.getString();
 	client.end();
 	OUT("http.POST returned %d: %s", r, s.c_str());
-	
+
 	StaticJsonDocument<1024> doc;
 	DeserializationError error = deserializeJson(doc, s);
 	const char *ota_ver = doc["ota_ver"];
@@ -290,3 +321,4 @@ void loop() {
 		esp_deep_sleep_start();
 	}
 }
+// 

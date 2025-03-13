@@ -31,6 +31,8 @@ os.system('gnuplot -e "set grid; st=20156.2;f=\'./data/plane.dat\'; set terminal
     'f u (\\$1-st):7 w l title \'Cockpit Interior VDP\' lw 3' +
     ', f u (\\$1-st):17 w l title \'Ambient VPD\'' +
     ', f u (\\$1-st):12 w l title \'Dessicant Exhaust VDP\'' +
+    ', f u (\\$1-st):20 w l title \'Fan\'' +
+    ', f u (\\$1-st):21 ax x1y2 w l title \'Fan PWM\'' +
     #', \'./data/metar.dat\' u 1:2 w l title \'METAR Dewpoint\';' + 
-    ', 4; pause 1111"')
+    ', 4 w l title \'Threshold\'; pause 1111"')
 
