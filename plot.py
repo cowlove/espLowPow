@@ -23,16 +23,15 @@ if args.metar:
 if not args.quick:
     print("Fetching posted data...",end='', flush=True)
     os.system("ssh ls grep BB0 simplePost/screenlog.0 | grep MOF-Guest > ./data/plane_data.txt")
-    os.system("cat ./data/plane_data.txt | ./metar_parser.py > ./data/plane.dat")
+    os.system("tail -300 ./data/plane_data.txt | ./metar_parser.py > ./data/plane.dat")
     print("OK")
 
 os.system('gnuplot -e "set grid; st=20156.2;f=\'./data/plane.dat\'; set terminal qt size 1200,800;' +
-    'p [0:*][0:16]  ' +
+    'p [*:*][0:16]  ' +
     'f u (\\$1-st):7 w l title \'Cockpit Interior VDP\' lw 3' +
     ', f u (\\$1-st):17 w l title \'Ambient VPD\'' +
     ', f u (\\$1-st):12 w l title \'Dessicant Exhaust VDP\'' +
-    ', f u (\\$1-st):20 w l title \'Fan\'' +
-    ', f u (\\$1-st):21 ax x1y2 w l title \'Fan PWM\'' +
+    #', f u (\\$1-st):21 ax x1y2 w l title \'Fan PWM\'' +
     #', \'./data/metar.dat\' u 1:2 w l title \'METAR Dewpoint\';' + 
     ', 4 w l title \'Threshold\'; pause 1111"')
 
