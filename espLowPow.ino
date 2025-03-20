@@ -1,10 +1,8 @@
+//#define ESP32CORE_V2
 #include "jimlib.h"
 
 #ifndef CSIM
 #include <ArduinoJson.h>
-#include <esp_task_wdt.h>
-//#include <soc/soc.h>
-//#include <soc/rtc_cntl_reg.h>
 #include <DHT.h> //arduino-cli lib install "DHT sensor library"  
 #include <DHT_U.h>
 #endif

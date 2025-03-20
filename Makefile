@@ -5,7 +5,7 @@ VERBOSE=1
 MONITOR_SPEED=115200
 
 GIT_VERSION := "$(shell git describe --abbrev=8 --dirty --always --tags)"
-BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\" 
 
 backtrace:
 	tr ' ' '\n' | /home/jim/.arduino15/packages/esp32/tools/xtensa-esp32-elf-gcc/*/bin/xtensa-esp32-elf-addr2line -f -i -e ${BUILD_DIR}/${MAIN_NAME}.elf
