@@ -3,11 +3,15 @@
 #ifndef CSIM
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
-#include <soc/soc.h>
-#include <soc/rtc_cntl_reg.h>
+//#include <soc/soc.h>
+//#include <soc/rtc_cntl_reg.h>
 #include <DHT.h> //arduino-cli lib install "DHT sensor library"  
 #include <DHT_U.h>
 #endif
+
+typedef struct { 
+	float temp, hum, dp, wc, vpd;
+} DhtResult;
 
 
 struct {
@@ -68,7 +72,7 @@ void setup() {
 	sch = ConfigItem::makeAllSetValues();
 	printf("%s\n", sch.c_str());
 #endif 
-	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
+	//WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
 	if (getMacAddress() == "AC67B2368DFC") { 
 		pins.fanPower = 0;
@@ -90,16 +94,16 @@ void setup() {
 	j.mqtt.active = false;
 	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
-	gpio_deep_sleep_hold_dis();
+	//gpio_deep_sleep_hold_dis();
 
 	pinMode(pins.fanPower, OUTPUT);
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.fanPower, 0);
 	digitalWrite(pins.led, 0);
 
-	ledcSetup(0, 25000, 6); // channel 0, 50 Hz, 16-bit width
-	ledcAttachPin(pins.fanPwm, 0);
-
+	//ledcSetup(0, 25000, 6); // channel 0, 50 Hz, 16-bit width
+	//ledcAttachPin(pins.fanPwm, 0);
+	ledcAttachChannel(pins.fanPwm, 25000, 6, 0);
 	delay(5000);
     
 	dht1 = new DHT_Unified(pins.dht1Data, DHT22);
@@ -116,10 +120,6 @@ int loopCount = 0;
 int firstLoop = 1;
 float bv1, bv2;
 int bv2Thresh = 1310;
-
-struct DhtResult { 
-	float temp, hum, dp, wc, vpd;
-};
 
 float vpd(float t, float rh) { 
 	float sp = 0.61078 * exp((17.27 * t) / (t + 237.3)) * 7.50062;
