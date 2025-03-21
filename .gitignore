@@ -4,3 +4,10 @@ screenlog.*
 *.ver
 *.perm
 .vscode
+build.sh
+*csim
+Vagrantfile
+.vagrant
+*.png
+build
+data

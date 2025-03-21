@@ -51,25 +51,6 @@ ConfigItemGit c7;
 #endif 
 
 void setup() {
-#if 0
-	string sch = ConfigItem::makeAllSchema();
-	printf("%s\n", sch.c_str());
-
-	delay(10);
-	sch = ConfigItem::makeAllResults();
-	printf("%s\n", sch.c_str());
-
-	ConfigItem::parseAllResults("MAC=FFXXXAA SCHASH=YYYHASHYYY LIPO=2.000000 "
-		"TEMP=3.000000 MILLIS=40 ");
-
-	ConfigItem::debugPrint();
-
-	c1.result = "MUSCHEMA";
-	c6.result = "2";
-
-	sch = ConfigItem::makeAllSetValues();
-	printf("%s\n", sch.c_str());
-#endif 
 	//WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
 	if (getMacAddress() == "AC67B2368DFC") { 
@@ -83,7 +64,7 @@ void setup() {
 	if (getMacAddress() == "A0DD6C725970") { 
 		pins.dht2Data = pins.dht3Data = 0;
 	}
-		
+	bzero(&pins, sizeof(pins));
 	pinMode(pins.dhtGnd, OUTPUT);
 	digitalWrite(pins.dhtGnd, 0);
 	pinMode(pins.dhtVcc, OUTPUT);
@@ -93,7 +74,6 @@ void setup() {
 	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	//gpio_deep_sleep_hold_dis();
-
 	pinMode(pins.fanPower, OUTPUT);
 	pinMode(pins.led, OUTPUT);
 	digitalWrite(pins.fanPower, 0);
@@ -102,8 +82,7 @@ void setup() {
 	//ledcSetup(0, 25000, 6); // channel 0, 50 Hz, 16-bit width
 	//ledcAttachPin(pins.fanPwm, 0);
 	ledcAttachChannel(pins.fanPwm, 25000, 6, 0);
-	delay(5000);
-    
+	delay(1000);
 	dht1 = new DHT_Unified(pins.dht1Data, DHT22);
 	dht2 = new DHT_Unified(pins.dht2Data, DHT22);
 	dht3 = new DHT_Unified(pins.dht3Data, DHT22);
