@@ -1,52 +1,77 @@
-BOARD=esp32c3
-VERBOSE=1
-MONITOR_SPEED=115200
-UPLOAD_PORT=/dev/ttyACM0
-ESP_ROOT=${HOME}/src/esp32
-GIT_VERSION := "$(shell git describe --abbrev=8 --dirty --always --tags)"
-BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\" 
-BUILD_EXTRA_FLAGS += -DESP32CORE_V2
+BOARD ?= esp32s3
+CHIP ?= esp32
+
+ALIBS=${HOME}/Arduino/libraries
+EXCLUDE_DIRS=${ALIBS}/lvgl|${ALIBS}/LovyanGFX|${ALIBS}/esp32csim|${ALIBS}/PubSubClient/tests
+PART_FILE=${ESP_ROOT}/tools/partitions/min_spiffs.csv
+GIT_VERSION := "$(shell git describe --abbrev=6 --dirty --always)"
+
+ifeq (${BOARD},esp32s3)
+        CDC_ON_BOOT=1
+        BUILD_MEMORY_TYPE=qio_opi
+        PORT ?= /dev/ttyACM0
+else
+        BUILD_MEMORY_TYPE=qio_qspi
+        PORT ?= /dev/ttyUSB0
+endif
+UPLOAD_PORT ?= ${PORT}
+
+ifeq ($(BOARD),csim)
+SKETCH_NAME=$(shell basename `pwd`)
+CSIM_BUILD_DIR=./build/csim
+CSIM_LIBS=Arduino_CRC32 ArduinoJson Adafruit_HX711 esp32jimlib
+CSIM_LIBS+=esp32csim
+CSIM_SRC_DIRS=$(foreach L,$(CSIM_LIBS),${HOME}/Arduino/libraries/${L}/src)
+CSIM_SRC_DIRS+=$(foreach L,$(CSIM_LIBS),${HOME}/Arduino/libraries/${L})
+CSIM_SRC_DIRS+=$(foreach L,$(CSIM_LIBS),${HOME}/Arduino/libraries/${L}/src/csim_include)
+CSIM_SRCS=$(foreach DIR,$(CSIM_SRC_DIRS),$(wildcard $(DIR)/*.cpp)) 
+CSIM_SRC_WITHOUT_PATH = $(notdir $(CSIM_SRCS))
+CSIM_OBJS=$(CSIM_SRC_WITHOUT_PATH:%.cpp=${CSIM_BUILD_DIR}/%.o)
+CSIM_INC=$(foreach DIR,$(CSIM_SRC_DIRS),-I${DIR})
+
+CSIM_CFLAGS+=-g -MMD -fpermissive -DGIT_VERSION=\"${GIT_VERSION}\" -DESP32 -DCSIM -DUBUNTU 
+#CSIM_CFLAGS+=-DGPROF=1 -pg
+#CSIM_CFLAGS+=-O2
+
+${CSIM_BUILD_DIR}/%.o: %.cpp 
+	echo $@
+	${CCACHE} g++ ${CSIM_CFLAGS} -x c++ -c ${CSIM_INC} $< -o $@
+
+${CSIM_BUILD_DIR}/%.o: %.ino
+	echo $@
+	${CCACHE} g++ ${CSIM_CFLAGS} -x c++ -c ${CSIM_INC} $< -o $@
+
+${SKETCH_NAME}_csim: ${CSIM_BUILD_DIR} ${CSIM_OBJS} ${CSIM_BUILD_DIR}/${SKETCH_NAME}.o
+	echo $@
+	g++ -g ${CSIM_CFLAGS} ${CSIM_OBJS} ${CSIM_BUILD_DIR}/${SKETCH_NAME}.o -o $@         
+
+csim: ${SKETCH_NAME}_csim 
+	cp $< $@
+
+${CSIM_BUILD_DIR}:
+	mkdir -p ${CSIM_BUILD_DIR}
+
+VPATH = $(sort $(dir $(CSIM_SRCS)))
+
+.PHONY: csim-clean
+csim-clean:
+	rm -f ${CSIM_BUILD_DIR}/*.[od] ${SKETCH_NAME}_csim csim
+
+-include ${CSIM_BUILD_DIR}/*.d
+else
+	include ~/Arduino/libraries/makeEspArduino/makeEspArduino.mk
+endif
+
+cat:    
+	while sleep .01; do if [ -c ${PORT} ]; then stty -F ${PORT} -echo raw 115200 && cat ${PORT}; fi; done  | tee ./cat.`basename ${PORT}`.out
+socat:  
+	socat udp-recvfrom:9000,fork - 
+mocat:
+	mosquitto_sub -h rp1.local -t "${MAIN_NAME}/#" -F "%I %t %p"   
+uc:
+	${MAKE} upload && ${MAKE} cat
 
 backtrace:
-	tr ' ' '\n' | /home/jim/.arduino15/packages/esp32/tools/xtensa-esp32-elf-gcc/*/bin/xtensa-esp32-elf-addr2line -f -i -e ${BUILD_DIR}/${MAIN_NAME}.elf
-	
-CHIP=esp32
-OTA_ADDR=192.168.4.154
-IGNORE_STATE=1
-
-UPLOAD_PORT ?= /dev/ttyUSB0
-BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\" 
-#BUILD_EXTRA_FLAGS += -DARDUINO_PARTITION_huge_app 
-BUILD_EXTRA_FLAGS += -DBOARD_HAS_PSRAM
-BUILD_MEMORY_TYPE = qio_opi
+	tr ' ' '\n' | addr2line -f -i -e ./build/${BOARD}/*.elf
 
 
-include ${HOME}/Arduino/libraries/makeEspArduino/makeEspArduino.mk
-
-fixtty:
-	stty -F ${UPLOAD_PORT} -hupcl -crtscts -echo raw  ${MONITOR_SPEED}
-
-cat:	fixtty
-	cat ${UPLOAD_PORT}
-
-socat:  
-	socat udp-recv:9000 - 
-mocat:
-	mosquitto_sub -h 192.168.4.1 -t "lowpow/#" -F "%I %t %p"   
-
-curl: ${BUILD_DIR}/${MAIN_NAME}.bin
-	curl -v --limit-rate 10k --progress-bar -F "image=@${BUILD_DIR}/${MAIN_NAME}.bin" ${OTA_ADDR}/update  > /dev/null
-
-CSIM_INC=${HOME}/Arduino/libraries/Arduino_CRC32/src/
-CSIM_CPP=${HOME}/Arduino/libraries/Arduino_CRC32/src/*
-
-.PHONY: ${MAIN_NAME}_csim
-${MAIN_NAME}_csim:  
-		g++ -x c++ -fpermissive -g ${MAIN_NAME}.ino -o $@ -DGIT_VERSION=\"${GIT_VERSION}\" -DESP32 -DCSIM -DUBUNTU \
-		-I./ -I${HOME}/Arduino/lib -I ${HOME}/Arduino/libraries/esp32jimlib/src/ -I ${CSIM_INC} \
-		${CSIM_CPP}
-
-
-csim: ${MAIN_NAME}_csim 
-	cp $< $@
-	

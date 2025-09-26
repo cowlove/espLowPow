@@ -2,13 +2,14 @@
 #include "jimlib.h"
 #include <vector>
 
-#ifndef CSIM
 #include <ArduinoJson.h>
+#ifndef CSIM
 #include <HTTPClient.h>
 #include <DHT.h> //arduino-cli lib install "DHT sensor library"  
 #include <DHT_U.h>
 #endif
 
+#define OUT printf
 typedef struct { 
 	float temp, hum, dp, wc, vpd;
 } DhtResult;
@@ -137,7 +138,7 @@ DhtResult r1, r2, r3;
 int fanMinutes = 0, fanPwm = 0, sleepMin = 0;
 
 using std::vector;
-
+#if 0 
 template<> bool fromString(const string &s, std::vector<string> &v) {
 	v = split(s, '\n');
 	return true;
@@ -148,6 +149,8 @@ template<> string toString(const std::vector<string> &v) {
    //rval = sfmt("%08d", v.size());
    return rval;
 }
+#endif
+
 SPIFFSVariable<string> reportQueue3("/reportQueue3", {});
 SPIFFSVariable<vector<string>> reportQueue("/repQ5", {});
 
@@ -196,7 +199,7 @@ int postData(bool allowUpdate) {
 	Serial.printf("Got data %s\n\n\n\n*******************\n", spost.c_str());
 
 	vector<string> rq = reportQueue;
-	OUT("Old report queue length %d", rq.size());
+	OUT("Old report queue length %d", (int)rq.size());
 	spost = "{\"ONE\":2}";
 	rq.push_back(spost);
 	reportQueue = rq;
@@ -217,8 +220,8 @@ int postData(bool allowUpdate) {
 			client.end();
 			OUT("http.POST returned %d: %s", r, resp.c_str());
 
-			StaticJsonDocument<1024> doc;
-			DeserializationError error = deserializeJson(doc, resp);
+			JsonDocument doc;
+			DeserializationError error = deserializeJson(doc, resp.c_str());
 			const char *ota_ver = doc["ota_ver"];
 			status = doc["status"];
 			fanPwm = doc["fanPwm"];
