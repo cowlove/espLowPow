@@ -11,3 +11,5 @@ Vagrantfile
 *.png
 build
 data
+spiff
+*.out
