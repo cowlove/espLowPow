@@ -1,11 +1,11 @@
-BOARD=esp32doit-devkit-v1
-#BOARD=heltec_wifi_lora_32
-#BOARD=nodemcu-32s
+BOARD=esp32c3
 VERBOSE=1
 MONITOR_SPEED=115200
-
+UPLOAD_PORT=/dev/ttyACM0
+ESP_ROOT=${HOME}/src/esp32
 GIT_VERSION := "$(shell git describe --abbrev=8 --dirty --always --tags)"
 BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\" 
+BUILD_EXTRA_FLAGS += -DESP32CORE_V2
 
 backtrace:
 	tr ' ' '\n' | /home/jim/.arduino15/packages/esp32/tools/xtensa-esp32-elf-gcc/*/bin/xtensa-esp32-elf-addr2line -f -i -e ${BUILD_DIR}/${MAIN_NAME}.elf
@@ -13,6 +13,13 @@ backtrace:
 CHIP=esp32
 OTA_ADDR=192.168.4.154
 IGNORE_STATE=1
+
+UPLOAD_PORT ?= /dev/ttyUSB0
+BUILD_EXTRA_FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\" 
+#BUILD_EXTRA_FLAGS += -DARDUINO_PARTITION_huge_app 
+BUILD_EXTRA_FLAGS += -DBOARD_HAS_PSRAM
+BUILD_MEMORY_TYPE = qio_opi
+
 
 include ${HOME}/Arduino/libraries/makeEspArduino/makeEspArduino.mk
 

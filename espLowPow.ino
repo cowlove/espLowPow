@@ -1,8 +1,10 @@
 //#define ESP32CORE_V2
 #include "jimlib.h"
+#include <vector>
 
 #ifndef CSIM
 #include <ArduinoJson.h>
+#include <HTTPClient.h>
 #include <DHT.h> //arduino-cli lib install "DHT sensor library"  
 #include <DHT_U.h>
 #endif
@@ -13,16 +15,16 @@ typedef struct {
 
 
 struct {
-	int led = getLedPin(); // D1 mini
-	int fanPower = 13; 
-	int fanPwm = 32;
-	int bv1 = 35;
-	int bv2 = 33;
-    int dhtGnd = 25;
-    int dhtVcc = 26;
-    int dht1Data = 27;
-    int dht2Data = 14;
-    int dht3Data = 12;
+	int led = getLedPin(); // 
+	int fanPower = 13; // green
+	int fanPwm = 32; // blue
+	int bv1 = 35; // internal, no wire
+	int bv2 = 33; // purple 
+    int dhtGnd = 25; // black
+    int dhtVcc = 26; // red 
+    int dht1Data = 27; // orange
+    int dht2Data = 14; // yellow
+    int dht3Data = 12; // blue 
 } pins;
 
 float calcDewpoint(float humi, float temp) {
@@ -53,6 +55,7 @@ ConfigItemGit c7;
 void setup() {
 	//WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout 
 
+	
 	if (getMacAddress() == "AC67B2368DFC") { 
 		pins.fanPower = 0;
 		pins.dhtGnd = 0;
@@ -70,7 +73,7 @@ void setup() {
 	pinMode(pins.dhtVcc, OUTPUT);
 	digitalWrite(pins.dhtVcc, 1);
 	
-	j.mqtt.active = false;
+	//j.jw.enabled = j.mqtt.active = false;
 	j.begin();
 	gpio_hold_dis((gpio_num_t)pins.fanPower);
 	//gpio_deep_sleep_hold_dis();
@@ -79,9 +82,7 @@ void setup() {
 	digitalWrite(pins.fanPower, 0);
 	digitalWrite(pins.led, 0);
 
-	//ledcSetup(0, 25000, 6); // channel 0, 50 Hz, 16-bit width
-	//ledcAttachPin(pins.fanPwm, 0);
-	ledcAttachChannel(pins.fanPwm, 25000, 6, 0);
+	ledcInit(pins.fanPwm, 25000, 6, 0);
 	delay(1000);
 	dht1 = new DHT_Unified(pins.dht1Data, DHT22);
 	dht2 = new DHT_Unified(pins.dht2Data, DHT22);
@@ -135,65 +136,113 @@ DhtResult readDht(DHT_Unified *dht, int n) {
 DhtResult r1, r2, r3;
 int fanMinutes = 0, fanPwm = 0, sleepMin = 0;
 
+using std::vector;
+
+template<> bool fromString(const string &s, std::vector<string> &v) {
+	v = split(s, '\n');
+	return true;
+}
+template<> string toString(const std::vector<string> &v) { 
+   string rval = "";
+   for(auto line : v) rval += line + "\n";
+   //rval = sfmt("%08d", v.size());
+   return rval;
+}
+SPIFFSVariable<string> reportQueue3("/reportQueue3", {});
+SPIFFSVariable<vector<string>> reportQueue("/repQ5", {});
+
+
+class DeepSleepElapsedTime {
+	SPIFFSVariable<int> bootStartMs = SPIFFSVariable<int>("/deepSleepElapsedTime", 0);
+public:
+	DeepSleepElapsedTime() {}
+	void sleep(int msToSleep) { bootStartMs = bootStartMs + millis() + msToSleep; } 
+	int elapsed() { return bootStartMs + millis(); }
+	void reset() { bootStartMs = -((int)millis()); }
+};
+
+DeepSleepElapsedTime reportTimer;
+
+
+
 int postData(bool allowUpdate) { 
 	int r = 0;
 	String s;
 	String mac = WiFi.macAddress();
 	mac.replace(":", "");
-	HTTPClient client;
-	//WiFiClientSecure wc;
-	//wc.setInsecure();
-	//r = client.begin(wc, "http://vheavy.com/log");
-	r = client.begin("http://vheavy.com/log");
-	OUT("http.begin() returned %d", r);
 
-	String spost = 
-		Sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
-		Sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
-		Sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
-		Sfmt("\"SSID\":\"%s\",", WiFi.SSID().c_str()) + 
-		Sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
-		Sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
-		Sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
-		Sfmt("\"FanPWM\":%d,", fanPwm) + 
-		Sfmt("\"Temp\":%.1f,", r1.temp) + 
-		Sfmt("\"Humidity\":%.1f,", r1.hum) + 
-		Sfmt("\"DewPoint\":%.1f,", r1.dp) + 
-		Sfmt("\"VPD\":%.1f,", r1.vpd) + 
-		Sfmt("\"WaterContent\":%.1f,", r1.wc) + 
-		Sfmt("\"DessicantT\":%.1f,", r2.temp) + 
-		Sfmt("\"DessicantDP\":%.1f,", r2.dp) + 
-		Sfmt("\"OutsideT\":%.1f,", r3.temp) + 
-		Sfmt("\"OutsideDP\":%.1f,", r3.dp) + 
-		Sfmt("\"Voltage1\":%.1f,", bv1) + 
-		Sfmt("\"Voltage2\":%.1f}\n", bv2);
+	string spost = 
+		sfmt("{\"PROGRAM\":\"%s\",", basename_strip_ext(__BASE_FILE__).c_str()) + 
+		sfmt("\"TSL\":%d,", (int)reportTimer.elapsed()) + 
+		sfmt("\"GIT_VERSION\":\"%s\",", GIT_VERSION) + 
+		sfmt("\"MAC\":\"%s\",", mac.c_str()) + 
+		sfmt("\"SSID\":\"%s\",", WiFi.SSID().c_str()) + 
+		sfmt("\"IP\":\"%s\",", WiFi.localIP().toString().c_str()) + 
+		sfmt("\"RSSI\":%d,", WiFi.RSSI()) +
+		sfmt("\"Fan\":%d,", digitalRead(pins.fanPower)) + 
+		sfmt("\"FanPWM\":%d,", fanPwm) + 
+		sfmt("\"Temp\":%.1f,", r1.temp) + 
+		sfmt("\"Humidity\":%.1f,", r1.hum) + 
+		sfmt("\"DewPoint\":%.1f,", r1.dp) + 
+		sfmt("\"VPD\":%.1f,", r1.vpd) + 
+		sfmt("\"WaterContent\":%.1f,", r1.wc) + 
+		sfmt("\"DessicantT\":%.1f,", r2.temp) + 
+		sfmt("\"DessicantDP\":%.1f,", r2.dp) + 
+		sfmt("\"OutsideT\":%.1f,", r3.temp) + 
+		sfmt("\"OutsideDP\":%.1f,", r3.dp) + 
+		sfmt("\"Voltage1\":%.1f,", bv1) + 
+		sfmt("\"Voltage2\":%.1f}\n", bv2);
+	
+	Serial.printf("Got data %s\n\n\n\n*******************\n", spost.c_str());
 
-	client.addHeader("Content-Type", "application/json");
-	Serial.printf("POST %s\n", spost.c_str());
-	r = client.POST(spost.c_str());
-	s =  client.getString();
-	client.end();
-	OUT("http.POST returned %d: %s", r, s.c_str());
+	vector<string> rq = reportQueue;
+	OUT("Old report queue length %d", rq.size());
+	spost = "{\"ONE\":2}";
+	rq.push_back(spost);
+	reportQueue = rq;
 
-	StaticJsonDocument<1024> doc;
-	DeserializationError error = deserializeJson(doc, s);
-	const char *ota_ver = doc["ota_ver"];
-	int status = doc["status"];
-	fanPwm = doc["fanPwm"];
-	fanMinutes = doc["fanMinutes"];
-	sleepMin = doc["sleep"];
+	int status = 1;
+	if (reportTimer.elapsed() > 3600 * 1000) 	{
+		HTTPClient client;
+		//WiFiClientSecure wc;
+		//wc.setInsecure();
+		//r = client.begin(wc, "http://vheavy.com/log");
+		r = client.begin("http://vheavy.com/log");
+		OUT("http.begin() returned %d", r);
+		for(auto s : rq) {
+			client.addHeader("Content-Type", "application/json");
+			Serial.printf("POST %s\n", s.c_str());
+			r = client.POST(s.c_str());
+			String resp =  client.getString();
+			client.end();
+			OUT("http.POST returned %d: %s", r, resp.c_str());
 
-	if (ota_ver != NULL && allowUpdate) { 
-		if (strcmp(ota_ver, GIT_VERSION) == 0 || strlen(ota_ver) == 0
-			// dont update an existing -dirty unless ota_ver is also -dirty  
-			//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
-			) {
-			OUT("OTA version '%s', local version '%s', no upgrade needed", ota_ver, GIT_VERSION);
-		} else { 
-			OUT("OTA version '%s', local version '%s', upgrading...", ota_ver, GIT_VERSION);
-			webUpgrade("http://vheavy.com/ota");
+			StaticJsonDocument<1024> doc;
+			DeserializationError error = deserializeJson(doc, resp);
+			const char *ota_ver = doc["ota_ver"];
+			status = doc["status"];
+			fanPwm = doc["fanPwm"];
+			fanMinutes = doc["fanMinutes"];
+			sleepMin = doc["sleep"];
+			if (status != 1)
+				break;
+			if (ota_ver != NULL && allowUpdate) { 
+				if (strcmp(ota_ver, GIT_VERSION) == 0 || strlen(ota_ver) == 0
+					// dont update an existing -dirty unless ota_ver is also -dirty  
+					//|| (strstr(GIT_VERSION, "-dirty") != NULL && strstr(ota_ver, "-dirty") == NULL)
+					) {
+					OUT("OTA version '%s', local version '%s', no upgrade needed", ota_ver, GIT_VERSION);
+				} else { 
+					OUT("OTA version '%s', local version '%s', upgrading...", ota_ver, GIT_VERSION);
+					webUpgrade("http://vheavy.com/ota");
+				}	
+			}
+		}
+		if (status == 1) { 
+			reportQueue = {};
+			reportTimer.reset();
 		}	
-	}	  
+	}  
 	return status;
 }
 
@@ -269,7 +318,7 @@ void loop() {
 		}
 
 		if (status == 1) {
-			sleepMin = max(1, sleepMin);
+			sleepMin = max(15, sleepMin);
 			//sleepMin = 1;
 			OUT("SLEEPING %d MINUTES", sleepMin);
 			delay(5000);
@@ -278,8 +327,8 @@ void loop() {
 			WiFi.mode(WIFI_OFF);    // Switch WiFi off
 			esp_sleep_enable_timer_wakeup(60LL * 1000000LL * sleepMin);
 			delay(1000);
+			reportTimer.sleep(60 * 1000LL * sleepMin);
 			esp_deep_sleep_start();									
-			ESP.restart();					
 		}
 	}
 
@@ -294,6 +343,7 @@ void loop() {
 		delay(100);
 		//ESP.restart();					
 		esp_sleep_enable_timer_wakeup(failSleepMinutes * 60LL * 1000000LL);
+		reportTimer.sleep(60 * 1000LL * failSleepMinutes);
 		esp_deep_sleep_start();
 	}
 }
